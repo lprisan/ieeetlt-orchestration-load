@@ -8,8 +8,8 @@ extractExtremeLoadMoments <- function(sessions, totaldata, outputfile="TimesToVi
     
     for(session in sessions){
         #load(paste("./",cleandir,"/",session,"-LoadMetrics.Rda",sep=""))
-        data <- totaldata[totaldata$Session == session,]
-        data <- data[data$Load==max(data$Load) | data$Load==min(data$Load),c("Session", "time")]
+        data <- totaldata[totaldata$session == session,]
+        data <- data[data$CoarseLoad==max(data$CoarseLoad) | data$CoarseLoad==min(data$CoarseLoad),c("session", "time")]
         data$Time.min <- msToMinSec(data$time)
         
         if(nrow(interesting)==0) interesting <- data

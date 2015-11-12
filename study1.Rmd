@@ -74,7 +74,6 @@ totaldata <- get(load(cleandatafile))
 # We crop outliers in the saccade speed. They tend to throw off the HMM and PCA calculations
 #countOutliers(totaldata$value.Sac,coef = 5, method="iqr") # 5xinter-quartile range
 totaldata$value.Sac <- replaceOutliers(totaldata$value.Sac,valueNA = F,coef = 5, method="iqr")
-hist(totaldata$value.Sac)
 
 loaddata <- calculateCoarseFineLoadIndex(totaldata,3:6,normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
 
@@ -167,11 +166,170 @@ As we can see, States 1 and 2 seem to correspond to high load episodes, state 3 
 
 ### C: Subjective episode analysis
 
-.... do more stuff here ....
+This part was not done in this study, as the researcher was the main teacher, and might have had assumptions about what each episode's load should be (thus, his subjective data might have been biased)
+
+### D: Behavioral episode analysis
+
+From the coarse load index, we extracted the extreme load episodes (10-second episodes with a coarse load index of 0 or 4), for manual coding of the subjective video feed by a researcher (see the ```./lib/extremeLoadExtraction.R``` file).
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+outputfile <- paste(rootdir,"/data/study1/TimesToVideoCode.csv",sep="")
+extremedata <- extractExtremeLoadMoments(sessions, loaddata, outputfile)
+```
+
+We manually coded the videos of all these extreme load episodes, along the dimensions of teacher activity, social plane of the interaction and main focus of gaze (see the ```JDC2014-Session*-videocoding.csv``` datafiles). We then aggregate the code counts for each of these dimensions, to bridge from the episode-level analysis to have an idea of what kind of episodes are often high or low (coarse) load. Also, comparisons with fine load, and the PCA and HMM dimensions of load data are made.
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Overall behavioral analyses
+# ACTIVITY
+# Additional non-extreme episodes were also coded, we eliminate them to get the coarse load contrast
+behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Activity)),]
+behdata$Activity <- factor(behdata$Activity)
+# chi-squared test and counts/residuals table for teacher activity
+tabAct <- table(behdata$CoarseLoad,behdata$Activity)
+chisq.test(tabAct)
+tabAct
+chisq.test(tabAct)$residuals
+
+# Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
+#g1 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity))
+#print(g1)
+# Density plots for the PCA dimensions for each kind of activity
+# TDT and EXP have higher values in the pupil-diameter load, MON and REP tend to have lower values
+g1 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(PupilLoadDim)) + geom_density(aes(col=Activity))
+print(g1)
+# EXP tends to have higher values in the fixation kind of dimension, MON and REP have lower values
+g2 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Activity))
+print(g2)
+# Another way of seeing this, in the PCA diagram
+res.pca = PCA(loaddata[, c(3:6, 10)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+
+# Comparison against the HMM states of load
+hmmActTab <- xtabs(~Activity+MMstate, data=loaddata[!is.na(loaddata$Activity),])
+chisq.test(hmmActTab)
+hmmActTab
+chisq.test(hmmActTab)$residuals
+
+```
+
+The **Activity** distribution is unlikely to be independent of the coarse load, but residuals are not very high, they are rather trends not significant by themselves.
+
+The two dimensions serve to see again how TDT and EXP have higher values in the pupil-diameter load, MON and REP tend to have lower values; EXP tends to have higher values in the fixation kind of dimension, MON and REP have lower values.
+
+The HMM states modelling of load help us confirm again that EXP, TDT are high-load states, but also that MON has a trend of high-saccade load episodes. We also see that MON, REP tend to be in the low-load state
+
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# SOCIAL
+behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Social)),]
+behdata$Social <- factor(behdata$Social)
+# chi-squared test and counts/residuals table for social plane of interaction
+tabSoc <- table(behdata$CoarseLoad,behdata$Social)
+chisq.test(tabSoc)
+tabSoc
+chisq.test(tabSoc)$residuals
+
+# Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
+g1 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(Social,FineLoad)) + geom_boxplot(aes(fill=Social))
+print(g1)
+# Density plots for the PCA dimensions for each kind of activity
+g1 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
+print(g1)
+g2 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
+print(g2)
+# Another way of seeing this, in the PCA diagram
+res.pca = PCA(loaddata[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+
+# Comparison against the HMM states of load
+hmmSocTab <- xtabs(~Social+MMstate, data=loaddata[!is.na(loaddata$Social),])
+chisq.test(hmmSocTab)
+hmmSocTab
+chisq.test(hmmSocTab)$residuals
+
+```
+
+Again, the distribution with respect to **Social plane** is statistically significant, and the high-load episodes tend to be in the classroom plane, while the low-load tend to be in the group plane. 
+
+The distribution in the two main load dimensions is also very clear, pointing to lower values in the group plane and higher values in the classroom plane. This also means that group-level activities tend to have more saccade-based load (maybe related to MON episodes, see above), while classroom level episodes tend to have more long-fixation-heavy load.
+
+These conclusions are also confirmed by the HMM load model states: classroom level is high load (especially, long-fixation ones), while group-level is more low-mid load states.
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# FOCUS
+behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Focus)),]
+behdata$Focus <- factor(behdata$Focus)
+# chi-squared test and counts/residuals table for main focus of gaze
+tabFoc <- table(behdata$CoarseLoad,behdata$Focus)
+chisq.test(tabFoc)
+tabFoc
+chisq.test(tabFoc)$residuals
+
+# Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
+g1 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus))
+print(g1)
+# Density plots for the PCA dimensions for each kind of activity ... not very readable
+g1 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
+print(g1)
+g2 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
+print(g2)
+# Another way of seeing this, in the PCA diagram
+res.pca = PCA(loaddata[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+
+# Comparison against the HMM states of load
+hmmFocTab <- xtabs(~Focus+MMstate, data=loaddata[!is.na(loaddata$Focus),])
+chisq.test(hmmFocTab)
+hmmFocTab
+chisq.test(hmmFocTab)$residuals
+```
+
+Again, the distribution of **Gaze focus** is very unlikely to be independent of the cognitive load measures. The residuals tell us that high-load episodes are more often looking at backs or faces or people, other experimenters or the teacher table with all the tangibles. Low-load are majoritarily focusing on the tabletop interface itself. 
+
+In this case, both the PCA dimensions analysis and the HMM states analysis clearly support this view of the influence of main gaze focus on load metrics.
+
+Additional, per-session behavioral analyses can be made too (but probably not very enlightening)
+
+### E: Session-level analysis and comparison
+
+Since we had no subjective ratings (for the session or for individual episodes) for cognitive load, all we can do is compare the quantitative, sensor-based load values for each session, to get an idea of which session could have been more or less "loading"
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Plotting the FineLoad of each session
+g1 <- ggplot(loaddata,aes(session,FineLoad)) + geom_boxplot(aes(fill=session))
+print(g1)
+g1 <- ggplot(loaddata,aes(FineLoad)) + geom_density(aes(col=session))
+print(g1)
+
+# Plotting against the PCA and HMM dimensions
+g1 <- ggplot(loaddata,aes(PupilLoadDim)) + geom_density(aes(col=session))
+print(g1)
+g1 <- ggplot(loaddata,aes(EyeMoveFixLoadDim)) + geom_density(aes(col=session))
+print(g1)
+loaddata$session <- factor(loaddata$session)
+res.pca = PCA(loaddata[, c(3:6, 1)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+
+# Comparison against the HMM states of load
+hmmSessTab <- xtabs(~session+MMstate, data=loaddata)
+chisq.test(hmmSessTab)
+hmmSessTab
+chisq.test(hmmSessTab)$residuals
 
 
 
-## The End!
+```
+
+We see that, despite differences not being very large, session 2 seemed to have more abundance of high-load episodes.
+
+The PCA dimensions help us see that session 1 was more prone to long-fixation-heavy episodes than the other two. Also, we see how actually session 3 was a little more load from a pupil-diameter dimension
+
+The analysis from the point of view of the HMM states is also interesting, as there are clear differences among otherwise quite similar sessions: session 1 was rich in long-fixation high-load episodes, while sessions 2 and 3 had more saccade-speed based high-load episodes. While session 3 was "average" in mid- and low-load episodes, session 1 had more low-load episodes, and session 2 had more mid-load episodes.
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
 # We come to the root folder, for the next study

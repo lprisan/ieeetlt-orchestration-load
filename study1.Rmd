@@ -11,11 +11,14 @@ First of all, we download the datasets for the three studies, which have been pu
 * [Dataset for Study 1 (Multi-tabletop sessions in the lab, primary school students)](https://zenodo.org/record/16515)
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(ggplot2)
 # We load the useful scripts and packages needed throughout the report
 source("./lib/rollingWindows.R")
 source("./lib/loadIndex.R")
 source("./lib/extremeLoadExtraction.R")
 source("./lib/aggregateEpisodeData.R")
+source("./lib/multiplot.R")
+source("./lib/outliers.R")
 
 rootdir <- getwd()
 
@@ -64,15 +67,107 @@ if(!file.exists(cleandatafile)){
 
 We first calculate the _coarse load index_ (how many measures are over the median) and the _fine load index_ (average of percentiles of the different load metrics), and we plot them for each session
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 setwd(paste(rootdir,"/data/study1",sep=""))
 totaldata <- get(load(cleandatafile))
-loaddata <- calculateCoarseFineLoadIndex(totaldata,normalized=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+
+# We crop outliers in the saccade speed. They tend to throw off the HMM and PCA calculations
+#countOutliers(totaldata$value.Sac,coef = 5, method="iqr") # 5xinter-quartile range
+totaldata$value.Sac <- replaceOutliers(totaldata$value.Sac,valueNA = F,coef = 5, method="iqr")
+hist(totaldata$value.Sac)
+
+loaddata <- calculateCoarseFineLoadIndex(totaldata,3:6,normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+
+# TODO: Check that all load metrics are directly proportional. If not, we need to introduce a modification in the calculations of load
 
 # We plot the loads for each session, along with some smoothing
+for(session in sessions){
+    sessiondata <- loaddata[loaddata$session==session,]
+    p1 <- ggplot(sessiondata, aes(x=time, y=CoarseLoad, col=CoarseLoad)) + 
+            ggtitle(paste("Coarse Load Index ",session,sep="")) + 
+            geom_line(size=1) + stat_smooth(method="loess",span=0.1,se=F) +
+            #theme(axis.text.x = element_text(size=18),plot.title=element_text(size=20, face="bold"),axis.title=element_text(size=18),panel.background = element_rect(fill = 'white')) +
+            theme(panel.background = element_rect(fill = 'white')) +
+            scale_color_gradient(low="green",high="red")
+    print(p1)
+
+    p2 <- ggplot(sessiondata, aes(x=time, y=FineLoad, col=FineLoad)) + 
+            ggtitle(paste("Fine Load Index ",session,sep="")) + 
+            geom_line(size=1) + stat_smooth(method="loess",span=0.1,se=F) +
+            #theme(axis.text.x = element_text(size=18),plot.title=element_text(size=20, face="bold"),axis.title=element_text(size=18),panel.background = element_rect(fill = 'white')) +
+            theme(panel.background = element_rect(fill = 'white')) +
+            scale_color_gradient(low="green",high="red")
+    print(p2)
+}
+```
+
+### B: Exploring the structure of the sensor (episode) load data 
+
+First we do a Principal Component analysis to see what dimensions are there within these 4 load-related signals:
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+library(FactoMineR)
+
+# Overall for the three sessions
+res.pca = PCA(loaddata[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca, axes=c(1, 2), choix="var", title="Overall data")
+loaddata$PupilLoadDim = res.pca$ind$coord[,1]
+loaddata$EyeMoveFixLoadDim = res.pca$ind$coord[,2]
+
+
+# For each session, results are quite similar
+#for(session in sessions){
+#    sessiondata <- loaddata[loaddata$session==session,]
+#    res.pca = PCA(sessiondata[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
+#    print(plot.PCA(res.pca, axes=c(1, 2), choix="var",title = paste("Session",session)))
+#}
+```
+
+We can see all the sessions have pretty similar dimensions, with one dimension taking the pupil diameter-related values, and the other one taking the fixations vs. saccades (in opposing directions, maybe indicating two different ways in which a teacher can be "loaded").
+
+To explore the temporal structure of these load-related sensor signals, we train a Hidden Markov Model with 4 states using the load-related signals as observables:
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+library(depmixS4)
+
+# We remove the missing data, as the HMM library does not like them, apparently
+# Not needed, we have no missing data in that sense
+#data4hmm <- loaddata[complete.cases(loaddata[,c("value.Mean","value.SD","value.Sac","value.Fix")]),]
+
+numstates <- 4
+
+set.seed(1)
+#set up the HMM model
+mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=loaddata, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(loaddata$session)), verbose=F)
+#fit the model 
+f <- fit(mod, verbose=F)
+#check to see how the state transtion matricies and process mean/sd matches our sample data
+summary(f)
+#get the estimated state for each timestep 
+esttrans <- posterior(f)
+loaddata$MMstate <- esttrans[,1]
+#plot(1:nrow(loaddata), esttrans[,1], type='p', col=as.factor(loaddata$session), main=paste('Estimated state',numstates))
+
+loaddata$MMstate <- factor(loaddata$MMstate)
+xtabs(~CoarseLoad+MMstate,data=loaddata)
+g1 <- ggplot(data = loaddata, mapping = aes(MMstate, FineLoad))+geom_boxplot(aes(fill=MMstate))+geom_jitter()
+print(g1)
+
+# We can also plot the states with regard to the two load dimensions from the PCA
+g2 <- ggplot(data = loaddata, mapping = aes(PupilLoadDim,EyeMoveFixLoadDim)) + geom_point(aes(col=MMstate)) + xlim(-4,4) + ylim(-5,5)
+print(g2)
+
+#State 1/2 seems to be mid/hi load, state 3 is mid load, state 4 is low-load
+levels(loaddata$MMstate) <- c("HiFixLoadState","HiSacLoadState","MidLoadState","LowLoadState")
 
 ```
 
+As we can see, States 1 and 2 seem to correspond to high load episodes, state 3 is more mid-load, while state 4 is rather low-load. Also, we see how these states largely serve to separate high-load values based on the pupil diameter metrics, while the 1/2 states seem to capture the variations in the saccadic/fixation dimension of the high-load episodes.
+
+### C: Subjective episode analysis
+
+.... do more stuff here ....
 
 
 

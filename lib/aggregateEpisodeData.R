@@ -18,7 +18,7 @@ aggregateEpisodeData <- function(sessions, datadir=".", initendtimes=NULL, windo
             
             # We load the raw events export
             filename = paste(datadir,"/",session,"-eventexport.txt", sep="")
-            filedata <- read.csv(filename,as.is=T,comment.char="#", sep=SEPARATOR)
+            filedata <- read.csv(filename,as.is=T,comment.char="#", sep=",")
             
             # From all the data, we only need timestamp, pupil diameter (L,R, in mm)
             filedata <- filedata[c(1,6,9)]

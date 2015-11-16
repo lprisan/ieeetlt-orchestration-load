@@ -2,7 +2,7 @@
 
 In this case study, we aimed to explore the following research questions: _is it feasible to use a mobile eye-tracker to follow a teacher's cognitive load in a semi-authentic classroom setting? Does such analysis provide interesting insights about classroom usability of a novel technology? Can we detect specific classroom interaction episodes that imply high (or low) cognitive load?_.
 
-The **context** of the data gathering were three sessions of 35-45 minutes long, in a classroom with several tabletop computers, in which classes of around 20 students were playing collaboratively to a tangible tabletop game, to learn about fractions, fraction comparison and equivalence. The teacher was wearing a mobile eye-tracker
+The **context** of the data gathering were three sessions of 35-45 minutes, in a classroom with several tabletop computers, in which classes of around 20 students were playing collaboratively to a tangible tabletop game, to learn about fractions, fraction comparison and equivalence. The teacher was wearing a mobile eye-tracker
 
 ## Before starting: Data download and pre-process
 

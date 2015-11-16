@@ -1,7 +1,7 @@
 # Study 2: Comparing a Novice and an Expert Teacher (University Course)
 
 
-In this case study, we aimed to explore the following research questions: _is it feasible to use a mobile eye-tracker to follow a teacher's cognitive load in a semi-authentic classroom setting? Can we detect specific classroom interaction episodes that imply high (or low) cognitive load? Can we see differences between the orchestration load patterns of a novice and an expert teacher?_.
+In this case study, we aimed to explore the following research questions: _is it feasible to use a mobile eye-tracker to follow a teacher's cognitive load in an authentic classroom setting? Can we detect specific classroom interaction episodes that imply high (or low) cognitive load? Can we see differences between the orchestration load patterns of a novice and an expert teacher?_.
 
 The **context** of the data gathering were three sessions of 45-65 minutes each, in a classroom with around 12-14 Master-level students, who were working with their laptops on a course about learning analytics (mostly, individual and pair work with occasional explanations by the teacher). There were two different teachers (an expert one in two sessions, and a novice one in the other), wearing a mobile eye-tracker while he facilitated the session.
 
@@ -47,7 +47,7 @@ sessions <-  c("DELANA-Session1-Expert-eyetracking","DELANA-Session2-Expert-eyet
 
 cleandatafile <- "study2ProcessedData.Rda"
 if(!file.exists(cleandatafile)){
-    data <- aggregateEpisodeData(sessions, datadir=paste(rootdir,"/data/study2",sep=""), initendtimes=NULL, SEPARATOR=";") # For this study the raw data is comma-separated!
+    data <- aggregateEpisodeData(sessions, datadir=paste(rootdir,"/data/study2",sep=""), initendtimes=NULL, SEPARATOR=";") # For this study the raw data is semicolon-separated, for the fix/sac at least!
     data <- data[,c(1:5,12)] # We select only the load-related metrics
     # We load and add the video coding data with the social, activity and main gaze focus dimensions
     videocodes <- read.csv("DELANA-videocoding.csv", sep=",")

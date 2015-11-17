@@ -133,9 +133,11 @@ usualdata$PupilVsFixLoadDim = res.pca$ind$coord[,2]
 # Novel sessions... the dimensions are kind of similar, but dimensions 1 and 2 are exchanged in importance
 noveldata <- loaddata[loaddata$session==sessions[3] | loaddata$session==sessions[4],]
 res.pca = PCA(noveldata[, c(2:5)], scale.unit=TRUE, ncp=5, graph=F)
-print(plot.PCA(res.pca, axes=c(1, 2), choix="var",title = "Usual technology"))
+print(plot.PCA(res.pca, axes=c(1, 2), choix="var",title = "Novel technology"))
 noveldata$SacVarLoadDim = res.pca$ind$coord[,2]
 noveldata$PupilVsFixLoadDim = res.pca$ind$coord[,1]
+noveldata3 <- noveldata[noveldata$session==sessions[3],]
+noveldata4 <- noveldata[noveldata$session==sessions[4],]
 
 ```
 
@@ -218,51 +220,91 @@ Also, looking at the two dimensions of load from the PCA we see how these states
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
-# Novel tech .... the states are really session dependent! 
-# TODO: redo separately for each of the novel sessions!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Novel tech 3
 
 set.seed(3)
 #set up the HMM model
-mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=noveldata, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(noveldata$session)), verbose=F)
+mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=noveldata3, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(noveldata3$session)), verbose=F)
 #fit the model 
 f <- fit(mod, verbose=F)
 #check to see how the state transtion matricies and process mean/sd matches our sample data
 summary(f)
 #get the estimated state for each timestep 
 esttrans <- posterior(f)
-noveldata$MMstate <- esttrans[,1]
-#plot(1:nrow(noveldata), esttrans[,1], type='p', col=as.factor(noveldata$session), main=paste('Estimated state',numstates))
+noveldata3$MMstate <- esttrans[,1]
+#plot(1:nrow(noveldata3), esttrans[,1], type='p', col=as.factor(noveldata3$session), main=paste('Estimated state',numstates))
 
-novicedata$MMstate <- factor(novicedata$MMstate)
-xtabs(~CoarseLoad+MMstate,data=novicedata)
-g1 <- ggplot(data = novicedata, mapping = aes(MMstate, FineLoad))+geom_boxplot(aes(fill=MMstate))+geom_jitter(aes(col=session))
+noveldata3$MMstate <- factor(noveldata3$MMstate)
+xtabs(~CoarseLoad+MMstate,data=noveldata3)
+g1 <- ggplot(data = noveldata3, mapping = aes(MMstate, FineLoad))+geom_boxplot(aes(fill=MMstate))+geom_jitter(aes(col=session))
 print(g1)
 
 # We can also plot the states with regard to the two load dimensions from the PCA
-g2 <- ggplot(data = novicedata, mapping = aes(PupilLoadDim,EyeMoveFixLoadDim)) + geom_point(aes(col=MMstate))# + xlim(-4,4) + ylim(-5,5)
+g2 <- ggplot(data = noveldata3, mapping = aes(SacVarLoadDim,PupilVsFixLoadDim)) + geom_point(aes(col=MMstate))# + xlim(-4,4) + ylim(-5,5)
 print(g2)
 
 #State 1/2 seems to be mid/hi load, state 3 is mid load, state 4 is low-load
-levels(novicedata$MMstate) <- c("HiFixLoadState","MidSacLoadState","LowLoadState","MidFixLoadState")
+levels(noveldata3$MMstate) <- c("HiSacVarLoadState","HighPupilMeanLoadState","MidPupilMeanLoadState","LowLoadState")
 
 
 
 ```
 
-As we can see, for the **novice teacher**, State 3 seems to be a low-load one. State 1 seems to be a higher-load state, while State 4 is a different kind of mid-higher-load state. Finally, State 2 is a mid-load state. 
+As we can see, for the **first session of novel technology**, State 1 seems to be a high-load one, and State 2 is a wider varying mid-high state. State 3 is more of a midlow load state, and state 4 seems to be more of a mid-load state. 
 
 Also, looking at the two dimensions of load from the PCA we see how these states separate better the load values, even if not very neatly:
 
-* State 1: Varies wildly in pupil diameter load, but has more fixation-based load
-* State 2: Medium-load state, more oriented towards pupil diameter load and saccadic load
-* State 3: Low-load state
-* State 4: Medium-high load state, especially from the point of view of fixation load
+* State 1: High-load state, more oriented towards saccade and pupil variation
+* State 2: High-load state, more oriented towards pupil diameter mean
+* State 3: Mid-load state, more emphases on Pupil diameter mean
+* State 4: Low-load state
 
-These states are not so clear as in the other cases, probably because the amount of data is relatively small, to see clear trends.
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+# Novel tech 4
+
+set.seed(6)
+#set up the HMM model
+mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=noveldata4, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(noveldata4$session)), verbose=F)
+#fit the model 
+f <- fit(mod, verbose=F)
+#check to see how the state transtion matricies and process mean/sd matches our sample data
+summary(f)
+#get the estimated state for each timestep 
+esttrans <- posterior(f)
+noveldata4$MMstate <- esttrans[,1]
+#plot(1:nrow(noveldata4), esttrans[,1], type='p', col=as.factor(noveldata4$session), main=paste('Estimated state',numstates))
+
+noveldata4$MMstate <- factor(noveldata4$MMstate)
+xtabs(~CoarseLoad+MMstate,data=noveldata4)
+g1 <- ggplot(data = noveldata4, mapping = aes(MMstate, FineLoad))+geom_boxplot(aes(fill=MMstate))+geom_jitter(aes(col=session))
+print(g1)
+
+# We can also plot the states with regard to the two load dimensions from the PCA
+g2 <- ggplot(data = noveldata4, mapping = aes(SacVarLoadDim,PupilVsFixLoadDim)) + geom_point(aes(col=MMstate))# + xlim(-4,4) + ylim(-5,5)
+print(g2)
+
+#State 1/2 seems to be mid/hi load, state 3 is mid load, state 4 is low-load
+levels(noveldata4$MMstate) <- c("LowMeanLoadState","LowMidFixLoadState","MidFixLoadState","HighLoadState")
+
+```
+
+As we can see, for the **second session of novel technology**, state 1 seems to be a low-load one, state 2 a low-mid one, state 3 a mid-high one, and state 4 a rare, high-load one... 
+
+Also, looking at the two dimensions of load from the PCA we see how these states separate better the load values, even if not very neatly:
+
+* State 1: Low-load state, more oriented towards pupil diameter mean
+* State 2: Low-mid state, more oriented towards fixations
+* State 3: Mid-load state, also oriented towards fixations
+* State 4: High-load state
+
 
 ### C: Subjective episode analysis
 
-Unfortunately, we lost this part of the dataset for technical reasons, and thus cannot be analyzed :(
+TODO: continue from here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 
 ### D: Behavioral episode analysis
 

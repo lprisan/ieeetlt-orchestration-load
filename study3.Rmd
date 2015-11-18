@@ -19,16 +19,24 @@ source("./lib/extremeLoadExtraction.R")
 source("./lib/aggregateEpisodeData.R")
 source("./lib/multiplot.R")
 source("./lib/outliers.R")
-
+source('./lib/codeAnalyses.R')
+source('./lib/generateVideoSnippetScript.R')
 rootdir <- getwd()
 
-# If not present already, download dataset study 2 and uncompress it to Study2/
+# If not present already, download dataset study 3 and uncompress it to Study3/
 setwd(paste(rootdir,"/data/study3",sep=""))
-if(!file.exists("TECHCOMPARE-VideoCodingData.zip") || !file.exists("TECHCOMPARE-EyetrackingData.zip")){
-#    download.file("https://zenodo.org/record/16514/files/DELANA-VideoCodingData.zip", destfile="DELANA-VideoCodingData.zip", method="curl")
-#    unzip("DELANA-VideoCodingData.zip")
-#    download.file("https://zenodo.org/record/16514/files/DELANA-EyetrackingData.zip", destfile="DELANA-EyetrackingData.zip", method="curl")
-#    unzip("DELANA-EyetrackingData.zip")
+if(!file.exists("ISL2014BASELINE-QuestionnaireData.zip") ||
+   !file.exists("ISL2015BASELINE-CodingData.zip") ||
+   !file.exists("ISL2014BASELINE-EyetrackingData.zip")){ #TODO: Add the other 3 files too!
+    download.file("https://zenodo.org/record/16551/files/ISL2014BASELINE-QuestionnaireData.zip", destfile="ISL2014BASELINE-QuestionnaireData.zip", method="curl")
+    unzip("ISL2014BASELINE-QuestionnaireData.zip")
+    download.file("https://zenodo.org/record/16551/files/ISL2015BASELINE-CodingData.zip", destfile="ISL2015BASELINE-CodingData.zip", method="curl")
+    unzip("ISL2015BASELINE-CodingData.zip")
+    download.file("https://zenodo.org/record/16551/files/ISL2014BASELINE-EyetrackingData.zip", destfile="ISL2014BASELINE-EyetrackingData.zip", method="curl")
+    unzip("ISL2014BASELINE-EyetrackingData.zip")
+    
+    #TODO: Do the same once the data for ISL2015 is in zenodo
+    
 } 
 
 # Now we should have the raw data files uncompressed in the data/study3 folder
@@ -42,21 +50,46 @@ setwd(paste(rootdir,"/data/study3",sep=""))
 # We do the preprocessing, which will generate a Rda file with the 10s
 # window data, and will return the name of the file
 
-sessions <-  c("TECHCOMPARE-Usual-Session1","TECHCOMPARE-Usual-Session2","TECHCOMPARE-Novel-Session3","TECHCOMPARE-Novel-Session4")
+sessions <-  c("ISL2014BASELINE-Session1-eyetracking","ISL2014BASELINE-Session2-eyetracking","ISL2015NOVEL-Session3-eyetracking","ISL2015NOVEL-Session4-eyetracking")
 
+srdata <- data.frame()
 
 cleandatafile <- "study3ProcessedData.Rda"
-if(!file.exists(cleandatafile)){
+#if(!file.exists(cleandatafile)){
     data <- aggregateEpisodeData(sessions, datadir=paste(rootdir,"/data/study3",sep=""), initendtimes=NULL, SEPARATOR=";") # For this study the raw data is semicolon-separated, at least the fixation/saccades!
     data <- data[,c(1:5,12)] # We select only the load-related metrics
     # We load and add the video coding data with the social, activity and main gaze focus dimensions
-    #TODO: clean and put all videocoding data into a single file
-    #videocodes <- read.csv("TECHCOMPARE-videocoding.csv", sep=",")
-    #videocodes$session <- videocodes$Session
-    #totaldata <- merge(data,videocodes,by=c("session","time"),all=T)
-    totaldata <- data
+    # clean and put all videocoding data into a single file
+    videocodes1 <- read.csv("ISL2014BASELINE-videocoding.csv", sep=",")
+    videocodes1$session <- videocodes1$Session
+    snippets1 <- read.csv("ISL2014BASELINE-stimulatedrecall-snippetselection.csv", sep=",")
+    ratings1 <- read.csv("ISL2014BASELINE-stimulatedrecall-ratings.csv", sep=",")
+    srdata1 <- merge(snippets1, ratings1, by=c("Session", "Snippet"),all=T)
+    audiocodes1 <- read.csv("ISL2014BASELINE-stimulatedrecall-audiocoding.csv", sep=";")
+    audiocodes1$time <- audiocodes1$Eyetrack.Time
+    srdata1$time <- srdata1$Window.Center
+    srdata1 <- merge(srdata1,audiocodes1,by=c("Session","time","Snippet"),all=T)
+    srdata1$session <- srdata1$Session
+    srdata1 <- srdata1[,c(2,3,6,8,9,10,13)] # We keep only non-duplicated, useful columns
+
+    videocodes2 <- read.csv("ISL2015NOVEL-videocoding.csv", sep=",")[,-9]
+    videocodes2$session <- videocodes2$Session
+    snippets2 <- read.csv("ISL2015NOVEL-stimulatedrecall-snippetselection.csv", sep=",")
+    ratings2 <- read.csv("ISL2015NOVEL-stimulatedrecall-ratings.csv", sep=",")
+    srdata2 <- merge(snippets2, ratings2, by=c("Session", "Snippet"),all=T)
+    audiocodes2 <- read.csv("ISL2015NOVEL-stimulatedrecall-audiocoding.csv", sep=";")[1:32,]
+    audiocodes2$time <- audiocodes2$Eyetrack.Time
+    srdata2$time <- srdata2$Window.Center
+    srdata2 <- merge(srdata2,audiocodes2,by=c("Session","time","Snippet"),all=T)
+    srdata2$session <- srdata2$Session
+    srdata2 <- srdata2[,c(2,3,6,8,9,10,13)] # We keep only non-duplicated, useful columns
+    
+    videocodes <- rbind(videocodes1,videocodes2)
+    srdata <- rbind(srdata1,srdata2)
+    totaldata <- merge(data,videocodes,by=c("session","time"),all=T)
+    totaldata <- merge(totaldata,srdata,by=c("session","time"),all=T)
     save(totaldata, file=cleandatafile)
-}
+#}
 
 ```
 
@@ -68,14 +101,13 @@ We first calculate the _coarse load index_ (how many measures are over the media
 setwd(paste(rootdir,"/data/study3",sep=""))
 totaldata <- get(load(cleandatafile))
 
-# In case there are missing values, we remove them
-totaldata <- totaldata[complete.cases(totaldata),]
+# In case there are missing values (sp. in the saccade speed), we remove them
+totaldata <- totaldata[complete.cases(totaldata$value.Sac),]
 # We crop outliers in the saccade speed. They tend to throw off the HMM and PCA calculations
 #countOutliers(totaldata$value.Sac,coef = 20, method="iqr") # IQR is quite small (0.06), but there are quite a few samples outside this range, we make it 20xIQR
 totaldata$value.Sac <- replaceOutliers(totaldata$value.Sac,valueNA = F,coef = 20, method="iqr")
 
-# TODO: Check this line after we add the video coding data
-loaddata <- calculateCoarseFineLoadIndex(totaldata,2:5,normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+loaddata <- calculateCoarseFineLoadIndex(totaldata,3:6,normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
 
 # Check that all load metrics are directly proportional (e.g., EEG Theta is inverse to cognitive load). If not, we need to introduce a modification in the calculations of load
 
@@ -109,8 +141,7 @@ First we do a Principal Component analysis to see what dimensions are there with
 library(FactoMineR)
 
 # Overall for the three sessions
-# TODO: recheck this line after we add the videocoding data
-res.pca = PCA(loaddata[, c(2:5)], scale.unit=TRUE, ncp=5, graph=F)
+res.pca = PCA(loaddata[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
 plot.PCA(res.pca, axes=c(1, 2), choix="var", title="Overall data")
 #loaddata$PupilLoadDim = res.pca$ind$coord[,1]
 #loaddata$EyeMoveFixLoadDim = res.pca$ind$coord[,2]
@@ -118,21 +149,21 @@ plot.PCA(res.pca, axes=c(1, 2), choix="var", title="Overall data")
 # We now do it per session, to see if the teacher has different patterns... it does, somehow! The usual ones are kind of similar, but the Novel ones are quite different
  for(session in sessions){
      sessiondata <- loaddata[loaddata$session==session,]
-     res.pca = PCA(sessiondata[, c(2:5)], scale.unit=TRUE, ncp=5, graph=F)
+     res.pca = PCA(sessiondata[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
      print(plot.PCA(res.pca, axes=c(1, 2), choix="var",title = paste("Session",session)))
  }
 
 # Let us look at the usual vs novel sessions
 # Usual sessions
 usualdata <- loaddata[loaddata$session==sessions[1] | loaddata$session==sessions[2],]
-res.pca = PCA(usualdata[, c(2:5)], scale.unit=TRUE, ncp=5, graph=F)
+res.pca = PCA(usualdata[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
 print(plot.PCA(res.pca, axes=c(1, 2), choix="var",title = "Usual technology"))
 usualdata$SacVarLoadDim = res.pca$ind$coord[,1]
 usualdata$PupilVsFixLoadDim = res.pca$ind$coord[,2]
 
 # Novel sessions... the dimensions are kind of similar, but dimensions 1 and 2 are exchanged in importance
 noveldata <- loaddata[loaddata$session==sessions[3] | loaddata$session==sessions[4],]
-res.pca = PCA(noveldata[, c(2:5)], scale.unit=TRUE, ncp=5, graph=F)
+res.pca = PCA(noveldata[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
 print(plot.PCA(res.pca, axes=c(1, 2), choix="var",title = "Novel technology"))
 noveldata$SacVarLoadDim = res.pca$ind$coord[,2]
 noveldata$PupilVsFixLoadDim = res.pca$ind$coord[,1]
@@ -144,6 +175,9 @@ noveldata4 <- noveldata[noveldata$session==sessions[4],]
 Interestingly, we can see that the two main dimensions of the load metric variability follows a different pattern to the previous study: in one dimension the saccade speed and the pupil diameter variation are aligned, while in the other the pupil mean and the long fixations are _opposed_. This seems to be constant across the technologies used, but the importance of dimensions is inverted in the case of novel technology.
 
 To explore the temporal structure of these load-related sensor signals, we train a Hidden Markov Model for each kind of technology used, with 4 states using the load-related signals as observables:
+
+**Note**: after exploratory analysis we find that certain HMM states when analyzing the novel technology sessions, become session-dependent, indicating that **the two novel technology sessions are qualitatively different in the time structure of the load metrics**! This may be related to the fact that in the first of those sessions the teacher was only co-facilitating, while in the last one she was leading the facilitation. Hence, we analyze the HMM states separately for both novel sessions.
+
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 library(depmixS4)
@@ -244,7 +278,7 @@ g2 <- ggplot(data = noveldata3, mapping = aes(SacVarLoadDim,PupilVsFixLoadDim)) 
 print(g2)
 
 #State 1/2 seems to be mid/hi load, state 3 is mid load, state 4 is low-load
-levels(noveldata3$MMstate) <- c("HiSacVarLoadState","HighPupilMeanLoadState","MidPupilMeanLoadState","LowLoadState")
+levels(noveldata3$MMstate) <- c("HiSacVarLoadState","MidHighPupilMeanLoadState","MidLowPupilMeanLoadState","MidLoadState")
 
 
 
@@ -256,8 +290,8 @@ Also, looking at the two dimensions of load from the PCA we see how these states
 
 * State 1: High-load state, more oriented towards saccade and pupil variation
 * State 2: High-load state, more oriented towards pupil diameter mean
-* State 3: Mid-load state, more emphases on Pupil diameter mean
-* State 4: Low-load state
+* State 3: Mid-Low-load state, more emphases on Pupil diameter mean
+* State 4: Mid-load state
 
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
@@ -286,42 +320,226 @@ g2 <- ggplot(data = noveldata4, mapping = aes(SacVarLoadDim,PupilVsFixLoadDim)) 
 print(g2)
 
 #State 1/2 seems to be mid/hi load, state 3 is mid load, state 4 is low-load
-levels(noveldata4$MMstate) <- c("LowMeanLoadState","LowMidFixLoadState","MidFixLoadState","HighLoadState")
+levels(noveldata4$MMstate) <- c("MidLowFixLoadState","LowLoadState","MidHiFixLoadState","HighLoadState")
 
 ```
 
-As we can see, for the **second session of novel technology**, state 1 seems to be a low-load one, state 2 a low-mid one, state 3 a mid-high one, and state 4 a rare, high-load one... 
+As we can see, for the **second session of novel technology**, state 1 seems to be a mid-low, state 2 a low one, state 3 a mid-high one, and state 4 a rare, high-load one.
 
 Also, looking at the two dimensions of load from the PCA we see how these states separate better the load values, even if not very neatly:
 
-* State 1: Low-load state, more oriented towards pupil diameter mean
-* State 2: Low-mid state, more oriented towards fixations
+* State 1: Mid-low-load state, more oriented towards fixations
+* State 2: Low state
 * State 3: Mid-load state, also oriented towards fixations
 * State 4: High-load state
 
 
 ### C: Subjective episode analysis
 
-TODO: continue from here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, eval=F}
+# Code to generate the video snippets to use in the stimulated recall interview
+# This assumes the videos are placed in the same location as the dataset
+generateVideoSnippetScript(timesFile=paste(rootdir,"/data/study3/ISL2014BASELINE-stimulatedrecall-snippetselection.csv",sep=""),videoDir=".")
+# Then, the generated script (extractSnippets.sh) has to be executed to generate the small video files for each selected episode
+generateVideoSnippetScript(timesFile=paste(rootdir,"/data/study3/ISL2015NOVEL-stimulatedrecall-snippetselection.csv",sep=""),videoDir=".")
+# Idem
+```
+
+To understand how these physiological measures of cognitive load relate with the subjective experience and perception of mental effort, we analyze the episode ratings and think-aloud rationales of the teacher, and compare them with the physiological load values:
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=10}
+library(gplots)
+
+compare <- rbind(usualdata[,c("CoarseLoad","FineLoad","Subjective.Value","Codes","SacVarLoadDim","PupilVsFixLoadDim","MMstate","session")],noveldata3[,c("CoarseLoad","FineLoad","Subjective.Value","Codes","SacVarLoadDim","PupilVsFixLoadDim","MMstate","session")],noveldata4[,c("CoarseLoad","FineLoad","Subjective.Value","Codes","SacVarLoadDim","PupilVsFixLoadDim","MMstate","session")])
+compare <- compare[complete.cases(compare),]
+names(compare)
+codes <- flattenCodeData(compare,4,c(1:3,5:8))
+
+# General DISTRIBUTION OF CODES
+qplot(Code,data=codes,fill=session)
+
+# COMPARISON AGAINST PHYSIOLOGICAL VALUES
+plotmeans(Subjective.Value ~ CoarseLoad, data=compare)
+# We check the significance of this difference
+anova(lm(compare$Subjective.Value~compare$CoarseLoad))$`Pr(>F)`[1]
+
+qplot(Subjective.Value,FineLoad, data=compare, geom=c("point"))+geom_smooth(se=T,method="lm")
+# We check the significance of this difference
+anova(lm(compare$Subjective.Value~compare$FineLoad))$`Pr(>F)`[1]
+
+# COMPARISON OF CODES AND SUBJECTIVE/PHYSIOLOGICAL VALUES
+# Codes vs. Subj.Load ... what proportion of codes are in the high part of the teacher's subjective range of values?
+codes$Subjective.Hi <- codes$Subjective.Value > mean(range(codes$Subjective.Value))
+subjtab <- xtabs(~Subjective.Hi+Code, data=codes)
+subjtab
+chisq.test(subjtab)
+chisq.test(subjtab)$residuals
+
+# Codes vs. Load... no statistically significant trend
+qplot(Code,FineLoad,data=codes,geom="boxplot",fill=Code)+geom_jitter()
+codes$Fine.Hi <- codes$FineLoad > mean(range(codes$FineLoad))
+finetab <- xtabs(~Fine.Hi+Code, data=codes)
+finetab
+chisq.test(finetab)
+coarsetab <- xtabs(~factor(CoarseLoad)+Code, data=codes)
+coarsetab
+chisq.test(coarsetab)
+
+# Codes vs. PCA dimensions... no statistically significant trend
+qplot(Code,SacVarLoadDim,data=codes,geom="boxplot",fill=Code)+geom_jitter()+ylim(c(-2,2))
+qplot(Code,PupilVsFixLoadDim,data=codes,geom="boxplot",fill=Code)+geom_jitter()
+
+# Codes vs. HMM states... no statistically significant trend
+hmmtab <- xtabs(~MMstate+Code, data=codes)
+hmmtab
+chisq.test(coarsetab)
+```
+
+For the **overall analysis** of this subjective data, we find that the codes are a bit different in both kinds of sessions, and that the correlation between the physiological load and the subjective ratings is negligible.
+
+Although not significant, there is a clear trend to make remarks about following progress/plans and making repairs in the lower subjective ratings, while putting anticipation, guiding or game-specific, frustration or class-wide in the higher-load ratings.
+
+Let us now do the same for the Usual and novel technology sessions separately, to see whether there are noticeable differences
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=10}
+library(gplots)
+
+compare <- usualdata[,c("CoarseLoad","FineLoad","Subjective.Value","Codes","SacVarLoadDim","PupilVsFixLoadDim","MMstate")]
+compare <- compare[complete.cases(compare),]
+names(compare)
+codes <- flattenCodeData(compare,4,c(1:3,5:7))
+
+# General DISTRIBUTION OF CODES
+qplot(Code,data=codes,fill=Code)
+
+# COMPARISON AGAINST PHYSIOLOGICAL VALUES
+plotmeans(Subjective.Value ~ CoarseLoad, data=compare)
+# We check the significance of this difference
+anova(lm(compare$Subjective.Value~compare$CoarseLoad))$`Pr(>F)`[1]
+
+qplot(Subjective.Value,FineLoad, data=compare, geom=c("point"))+geom_smooth(se=T,method="lm")
+# We check the significance of this difference
+anova(lm(compare$Subjective.Value~compare$FineLoad))$`Pr(>F)`[1]
+
+# COMPARISON OF CODES AND SUBJECTIVE/PHYSIOLOGICAL VALUES
+# Codes vs. Subj.Load ... what proportion of codes are in the high part of the teacher's subjective range of values?
+codes$Subjective.Hi <- codes$Subjective.Value > mean(range(codes$Subjective.Value))
+subjtab <- xtabs(~Subjective.Hi+Code, data=codes)
+subjtab
+chisq.test(subjtab)
+
+# Codes vs. Load... no statistically significant trend
+qplot(Code,FineLoad,data=codes,geom="boxplot",fill=Code)+geom_jitter()
+codes$Fine.Hi <- codes$FineLoad > mean(range(codes$FineLoad))
+finetab <- xtabs(~Fine.Hi+Code, data=codes)
+finetab
+chisq.test(finetab)
+coarsetab <- xtabs(~factor(CoarseLoad)+Code, data=codes)
+coarsetab
+chisq.test(coarsetab)
+
+# Codes vs. PCA dimensions... no statistically significant trend
+qplot(Code,SacVarLoadDim,data=codes,geom="boxplot",fill=Code)+geom_jitter()
+qplot(Code,PupilVsFixLoadDim,data=codes,geom="boxplot",fill=Code)+geom_jitter()
+
+# Codes vs. HMM states... no statistically significant trend
+hmmtab <- xtabs(~MMstate+Code, data=codes)
+hmmtab
+chisq.test(coarsetab)
+```
 
 
+For the **usual technology sessions**, we see that _modelling, assessing and following the progress_ of students are the most common aspects mentioned regarding (subjective) mental effort. We find a quite noticeable correspondence between physiological and subjective load ratings (p=0.02). 
+
+Regarding the distribution of codes in different kinds of episodes, we find that the _teacher tends to mention modelling (and assessing and following progress) in the episodes she rates higher in mental effort_, but the difference is not significant (sample size is too small). When comparing with the physiological measures of load, however, these trends are less noticeable (sp. given the small sample size): Assessing and modelling seem to be equally present in both high and low-load episodes. Hence, it looks like the _rationales for rating mental effort do not relate much with the physiological measures_ taken.
+
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=10}
+library(gplots)
+
+compare <- rbind(noveldata3[,c("CoarseLoad","FineLoad","Subjective.Value","Codes","SacVarLoadDim","PupilVsFixLoadDim","MMstate","session")],noveldata4[,c("CoarseLoad","FineLoad","Subjective.Value","Codes","SacVarLoadDim","PupilVsFixLoadDim","MMstate","session")])
+compare <- compare[complete.cases(compare$Subjective.Value),]
+names(compare)
+codes <- flattenCodeData(compare,4,c(1:3,5:8))
+
+# General DISTRIBUTION OF CODES
+qplot(Code,data=codes,fill=session)
+
+# COMPARISON AGAINST PHYSIOLOGICAL VALUES
+plotmeans(Subjective.Value ~ CoarseLoad, data=compare)
+# We check the significance of this difference
+anova(lm(compare$Subjective.Value~compare$CoarseLoad))$`Pr(>F)`[1]
+
+qplot(Subjective.Value,FineLoad, data=compare, geom=c("point"))+geom_smooth(se=T,method="lm")
+# We check the significance of this difference
+anova(lm(compare$Subjective.Value~compare$FineLoad))$`Pr(>F)`[1]
+
+#What about separating the sessions?
+qplot(Subjective.Value,FineLoad, data=compare, geom=c("point"), col=session)+geom_smooth(se=T,method="lm")
+compare3 <- compare[compare$session==sessions[3],]
+compare4 <- compare[compare$session==sessions[4],]
+# We check the significance of this difference
+anova(lm(compare3$Subjective.Value~compare3$FineLoad))$`Pr(>F)`[1]
+anova(lm(compare4$Subjective.Value~compare4$FineLoad))$`Pr(>F)`[1]
+
+# COMPARISON OF CODES AND SUBJECTIVE/PHYSIOLOGICAL VALUES
+# Codes vs. Subj.Load ... what proportion of codes are in the high part of the teacher's subjective range of values?
+codes$Subjective.Hi <- codes$Subjective.Value > mean(range(codes$Subjective.Value))
+subjtab <- xtabs(~Subjective.Hi+Code, data=codes)
+subjtab
+chisq.test(subjtab)
+
+# Codes vs. Load... no statistically significant trend
+qplot(Code,FineLoad,data=codes,geom="boxplot",fill=Code)+geom_jitter(aes(col=session))
+#qplot(Code,FineLoad,data=codes,geom="boxplot",fill=session)+geom_jitter(aes(col=session))
+codes$Fine.Hi <- codes$FineLoad > mean(range(codes$FineLoad))
+finetab <- xtabs(~Fine.Hi+Code, data=codes)
+finetab
+chisq.test(finetab)
+coarsetab <- xtabs(~factor(CoarseLoad)+Code, data=codes)
+coarsetab
+chisq.test(coarsetab)
+
+# Codes vs. PCA dimensions... no statistically significant trend
+qplot(Code,SacVarLoadDim,data=codes,geom="boxplot",fill=Code)+geom_jitter(aes(col=session))
+qplot(Code,PupilVsFixLoadDim,data=codes,geom="boxplot",fill=Code)+geom_jitter(aes(col=session))
+
+# Codes vs. HMM states... no statistically significant trend
+hmmtab <- xtabs(~MMstate+Code, data=codes)
+hmmtab
+chisq.test(coarsetab)
+```
+
+For the **novel technology sessions**, we find that still assessing, modelling and monitoring are among the most common issues mentioned in the subjective rationales; however, in this case there are also a lot of game-specific remarks (rules of the game, etc). There are also a few mentions to frustration in the last session.
+
+However, in this case we observe that the subjective and physiological ratings of load are not clearly correlated (maybe because of the novelty of the situation?). However, we also see that this is mostly due to the first novel session, in which correlation is actually negative, while in the last session it is positive (but not statistically significant).
+
+Regarding the distribution of codes, even if trends are not statistically significant (given their small number), there are certain trends of putting modelling and assessing and guiding, anticipation (and game-specific) in the higher subjective values.
+
+Interestingly, the (non-statistically significant) trends in terms of physiological load are reversed: modelling, assessing, monitoring tend to be in the lower part of the physiological load, while anticipation remains in the high load part. Also interesting (although not part of the subjective opinion rather the snippet selection, most episodes in the first novel session are towards the pupil mean load metric, while on the second novel session they are mostly towards the long fixation dimension)
+
+**Differences between usual and novel technology sessions**
+From the above comparisons, we can see how the teacher tends to be consistent in the rationales for responses (e.g., assessing, modelling being in the high mental effort episodes), while the physiological readings of load are less consistent with the rationales (e.g., assessing monitoring being unrelated in the usual sessions, while they tend to be in the low-load part of the spectrum in the novel technology sessions). Also, we see that the subjective values correlate with the physiological ones... but not in the novel situations (but more data would be needed to confirm)
 
 ### D: Behavioral episode analysis
 
 From the coarse load index, we extracted the extreme load episodes (10-second episodes with a coarse load index of 0 or 4), for manual coding of the subjective video feed by a researcher (see the ```./lib/extremeLoadExtraction.R``` file).
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-outputfile <- paste(rootdir,"/data/study2/TimesToVideoCode.csv",sep="")
+outputfile <- paste(rootdir,"/data/study3/TimesToVideoCode.csv",sep="")
 extremedata <- extractExtremeLoadMoments(sessions, loaddata, outputfile)
 ```
 
-We manually coded the videos of all these extreme load episodes, along the dimensions of teacher activity, social plane of the interaction and main focus of gaze (see the ```DELANA-videocoding.csv``` datafile). We then aggregate the code counts for each of these dimensions, to bridge from the episode-level analysis to have an idea of what kind of episodes are often high or low (coarse/fine) load. Also, comparisons with fine load, and the PCA and HMM dimensions of load data are made.
+We manually coded the videos of all these extreme load episodes, along the dimensions of teacher activity, social plane of the interaction and main focus of gaze (see the ```ISL*-videocoding.csv``` datafiles). We then aggregate the code counts for each of these dimensions, to bridge from the episode-level analysis to have an idea of what kind of episodes are often high or low (coarse/fine) load. Also, comparisons with fine load, and the PCA and HMM dimensions of load data are made.
+
+#### Activity dimension
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
 # Overall behavioral analyses
 # ACTIVITY
-# Additional non-extreme episodes were also coded, we eliminate them to get the coarse load contrast
-behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Activity)),]
+loaddata <- rbind(usualdata,noveldata3,noveldata4)
+
+behdata <- loaddata[(!is.na(loaddata$Activity)),]
 behdata$Activity <- factor(behdata$Activity)
 # chi-squared test and counts/residuals table for teacher activity
 tabAct <- table(behdata$CoarseLoad,behdata$Activity)
@@ -329,35 +547,42 @@ chisq.test(tabAct)
 tabAct
 chisq.test(tabAct)$residuals
 
-# Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-#g1 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity))
-#print(g1)
-# Density plots for the PCA dimensions for each kind of activity
-g1 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(PupilLoadDim)) + geom_density(aes(col=Activity))
+# Plotting against the FineLoad confirms the trends of CoarseLoad (even with its tendency towards the mean)
+g1 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity)) + geom_jitter(aes(col=session))
 print(g1)
-g2 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Activity))
-print(g2)
+# Density plots for the PCA dimensions for each kind of activity
+# g1 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(SacVarLoadDim)) + geom_density(aes(col=Activity))
+# print(g1)
+# g2 <- ggplot(loaddata[!is.na(loaddata$Activity),],aes(PupilVsFixLoadDim)) + geom_density(aes(col=Activity))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
 res.pca = PCA(loaddata[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 #plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
-# Comparison against the HMM states of load -- This was not really done for overall data
-# hmmActTab <- xtabs(~Activity+MMstate, data=loaddata[!is.na(loaddata$Activity),])
-# chisq.test(hmmActTab)
-# hmmActTab
-# chisq.test(hmmActTab)$residuals
+# Comparison against the HMM states of load -- The states are different for each session, almost!
+hmmActTab <- xtabs(~Activity+MMstate, data=loaddata[!is.na(loaddata$Activity),])
+chisq.test(hmmActTab)
+hmmActTab
+chisq.test(hmmActTab)$residuals
 
 ```
 
-Looking at the overall data, we find that **Activity** could be independent of the coarse load, and we see how MONitoring and REPairs are higher-load (fixation-heavy) somehow, while TDT and QUESTioning are in the lower-load, saccade-heavy part of the spectrum. But this analysis is not as interesting as the per-teacher one.
+Looking at the overall data, we find that **Activity** seems related to the coarse load, and we see how EXPlanations and QUEstioning are higher-load, while REPairs or MONitoring tend to be lower load. EXPlanations tend to be heavier in the saccade/pupil variance dimension, while DISCiplinary remarks tend to be bigger in terms of fixation (but they are too few to tell for sure).
 
+Looking into the PCA load dimensions, we see that EXP and QUE are heavier in the saccade/variation dimension, with MON, TDT and especially REP being low on this. The bariatiions in the pupil mean vs fixation dimension are relatively small.
+
+Looking at the HMM states, we find that certain activities are clearly represented in some states: EXPlanations tend to be in the high-load, high pupil mean state. MON tends to be in mid-low load states. QUE tends to be in high-load, high pupil mean state; REP tends to be in low or low-mid fixation states; TDT tends to be in the mid-low state with higher pupil mean.
+
+Let us now look at the activity analyses for the usual and novel sessions, to see whether there are noticeable differences.
+
+_Hence, we see that, despite the teacher being an expert, load patterns with regard to activity can be observed_
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Expert teacher analyses
+# Usual tech analyses
 # ACTIVITY
 # Additional non-extreme episodes were also coded, we eliminate them to get the coarse load contrast
-behdata <- expertdata[(expertdata$CoarseLoad==4|expertdata$CoarseLoad==0)&(!is.na(expertdata$Activity)),]
+behdata <- usualdata[(!is.na(usualdata$Activity)),]
 behdata$Activity <- factor(behdata$Activity)
 # chi-squared test and counts/residuals table for teacher activity
 tabAct <- table(behdata$CoarseLoad,behdata$Activity)
@@ -365,79 +590,109 @@ chisq.test(tabAct)
 tabAct
 chisq.test(tabAct)$residuals
 
-# Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-#g1 <- ggplot(expertdata[!is.na(expertdata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity))
-#print(g1)
-# Density plots for the PCA dimensions for each kind of activity
-g1 <- ggplot(expertdata[!is.na(expertdata$Activity),],aes(PupilLoadDim)) + geom_density(aes(col=Activity))
+# Plotting against the FineLoad
+g1 <- ggplot(usualdata[!is.na(usualdata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity))
 print(g1)
-g2 <- ggplot(expertdata[!is.na(expertdata$Activity),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Activity))
-print(g2)
+# Density plots for the PCA dimensions for each kind of activity
+# g1 <- ggplot(usualdata[!is.na(usualdata$Activity),],aes(SacVarLoadDim)) + geom_density(aes(col=Activity))
+# print(g1)
+# g2 <- ggplot(usualdata[!is.na(usualdata$Activity),],aes(PupilVsFixLoadDim)) + geom_density(aes(col=Activity))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
-res.pca = PCA(expertdata[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+res.pca = PCA(usualdata[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 #plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
 # Comparison against the HMM states of load -- This was not really done for overall data
-hmmActTab <- xtabs(~Activity+MMstate, data=expertdata[!is.na(expertdata$Activity),])
+usualdata$Activity <- factor(usualdata$Activity)
+hmmActTab <- xtabs(~Activity+MMstate, data=usualdata[!is.na(usualdata$Activity),])
 chisq.test(hmmActTab)
 hmmActTab
 chisq.test(hmmActTab)$residuals
 
 ```
 
-The **Activity** distribution is likely to be independent of the coarse load. Also, we see that the differences in the load dimensions with regard to Activities is not very distinct
+The **Activity** distribution is very unlikely to be independent of the physiological load. EXP, QUE tend to be high load, and REP (and somehow less MON) tend to be lower load. The trends in the PCA dimensions are similar to those in the overall analysis, with rather small differences among activities.
 
-The two dimensions serve to see again how TDT seems to be low-load with more emphasis on the saccade metric, but in general separation between activities in not very clear. The HMM states modelling of load separates certain activities from one another, and help us see these trends in another light, so we see that TDT is in the "low load but high fixation", REPairs are more common in "high load saccadic" state, EXPlanations seem to be more in the "mid-load state", while MONitoring is more on the "high load fixation state".
+The comparison with the HMM states clearly mark REP as being mostly in the low-load state, EXP in the high-load pupil mean state, and QUE in the high-load saccade/variance state.
 
-Thus we see that, maybe, _the activities being done are not affecting very clearly the expert teacher_.
+Thus we see that, maybe, _the activities being done are affecting quite clearly the expert teacher_.
 
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Novice teacher analyses
+# Novel tech analyses
 # ACTIVITY
-# Additional non-extreme episodes were also coded, we eliminate them to get the coarse load contrast
-behdata <- novicedata[(novicedata$CoarseLoad==4|novicedata$CoarseLoad==0)&(!is.na(novicedata$Activity)),]
+behdata <- noveldata[(!is.na(noveldata$Activity)),]
+# If we want to separate the two sessions of novel tech
+behdata3 <- noveldata3[(!is.na(noveldata3$Activity)),]
+behdata4 <- noveldata4[(!is.na(noveldata4$Activity)),]
 behdata$Activity <- factor(behdata$Activity)
+behdata3$Activity <- factor(behdata3$Activity)
+behdata4$Activity <- factor(behdata4$Activity)
+
 # chi-squared test and counts/residuals table for teacher activity
 tabAct <- table(behdata$CoarseLoad,behdata$Activity)
 chisq.test(tabAct)
 tabAct
 chisq.test(tabAct)$residuals
 
+tabAct3 <- table(behdata3$CoarseLoad,behdata3$Activity)
+chisq.test(tabAct3)
+tabAct3
+chisq.test(tabAct3)$residuals
+tabAct4 <- table(behdata4$CoarseLoad,behdata4$Activity)
+chisq.test(tabAct4)
+tabAct4
+chisq.test(tabAct4)$residuals
+
+
 # Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-#g1 <- ggplot(novicedata[!is.na(novicedata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity))
+#g1 <- ggplot(noveldata[!is.na(noveldata$Activity),],aes(Activity,FineLoad)) + geom_boxplot(aes(fill=Activity))
 #print(g1)
 # Density plots for the PCA dimensions for each kind of activity
-g1 <- ggplot(novicedata[!is.na(novicedata$Activity),],aes(PupilLoadDim)) + geom_density(aes(col=Activity))
-print(g1)
-g2 <- ggplot(novicedata[!is.na(novicedata$Activity),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Activity))
-print(g2)
+#g1 <- ggplot(noveldata[!is.na(noveldata$Activity),],aes(PupilLoadDim)) + geom_density(aes(col=Activity))
+#print(g1)
+#g2 <- ggplot(noveldata[!is.na(noveldata$Activity),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Activity))
+#print(g2)
 # Another way of seeing this, in the PCA diagram
-res.pca = PCA(novicedata[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
-#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+res.pca = PCA(noveldata[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+res.pca = PCA(noveldata3[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+res.pca = PCA(noveldata4[, c(3:6, 12)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
+
 # Comparison against the HMM states of load -- This was not really done for overall data
-hmmActTab <- xtabs(~Activity+MMstate, data=novicedata[!is.na(novicedata$Activity),])
+noveldata3$Activity <- factor(noveldata3$Activity)
+hmmActTab <- xtabs(~Activity+MMstate, data=noveldata3[!is.na(noveldata3$Activity),])
+chisq.test(hmmActTab)
+hmmActTab
+chisq.test(hmmActTab)$residuals
+noveldata4$Activity <- factor(noveldata4$Activity)
+hmmActTab <- xtabs(~Activity+MMstate, data=noveldata4[!is.na(noveldata4$Activity),])
 chisq.test(hmmActTab)
 hmmActTab
 chisq.test(hmmActTab)$residuals
 
 ```
 
-In the case of the **novice** teacher, we how even with less data points, the distribution of load seems to be related to the different teacher activities: EXPlanations seem to be higher-load, while REPairs seem to be lower load in general (TDT and QUEST are too infrequent to really say anything). These differences in load are mostly visible in the pupil diameter dimension, but also in the saccade/fixation one. 
+In the case of the **novel technology**, we see somehow similar trends to the overall and usual technology cases, but less clearly (e.g., EXP is still high load, but the other activities are not so significantly related). We see that this is due to the differences between the first novel tech session (with clear, similar trends) and the second novel tech session (where trends are unclear).
 
-In this case the HMM states modelling of load separates certain activities from one another: EXPlanations are in the "high-load high fixation" and "medium-load high fixation" states, MONitoring tends to be in the "medium load high saccade" state, and REPairs are more in the "low-load state"
+The PCA dimensions also show us how differences in the main dimension (saccade/variance) are small, while they are quite large in the second on (mean pupil diameter vs. long fixations). Separating the two sessions, we see how EXP tends to be always high-pupil diameter load, but the other activities vary from session to session.
 
-Thus we see how the _activities being done are affecting more clearly the novice teacher_, in a similar direction to that of the (also novice) teacher in study 1.
+The distribution with respect to HMM states of the two sessions is also slightly different (since the HMM states are also defined differently): in the first novel session, EXP tends to be high-load high-variance state or mid-high load high pupil mean; in the second one EXP is in the high-load state. The other trends are not so important, but they are somehow similar (e.g., TDT tends to be in the mid-low or low-load states).
 
+In any case, as we keep slicing the data, the statistical power decreases so it is more difficult to see trends.
 
+**Comparison of Activity between usual and novel technologies**: Some trends are similar (e.g., EXP is high-load, REP tends to be in low- or low-mid states), but others are clearly different (also because the kinds of activities the teacher did was different -- e.g., almost no QUE in the novel tech sessions)
+
+#### Social dimension
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
 # SOCIAL
 # Overall analysis
-behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Social)),]
+behdata <- loaddata[(!is.na(loaddata$Social)),]
 behdata$Social <- factor(behdata$Social)
 # chi-squared test and counts/residuals table for social plane of interaction
 tabSoc <- table(behdata$CoarseLoad,behdata$Social)
@@ -449,31 +704,36 @@ chisq.test(tabSoc)$residuals
 g1 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(Social,FineLoad)) + geom_boxplot(aes(fill=Social))
 print(g1)
 # Density plots for the PCA dimensions for each kind of activity
-g1 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
-print(g1)
-g2 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
-print(g2)
+# g1 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
+# print(g1)
+# g2 <- ggplot(loaddata[!is.na(loaddata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
 res.pca = PCA(loaddata[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 #plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
 # Comparison against the HMM states of load
-#hmmSocTab <- xtabs(~Social+MMstate, data=loaddata[!is.na(loaddata$Social),])
-#chisq.test(hmmSocTab)
-#hmmSocTab
-#chisq.test(hmmSocTab)$residuals
+hmmSocTab <- xtabs(~Social+MMstate, data=loaddata[!is.na(loaddata$Social),])
+chisq.test(hmmSocTab)
+hmmSocTab
+chisq.test(hmmSocTab)$residuals
 
 ```
 
-Analyzing the overall data, the distribution with respect to **Social plane** is statistically significant, and the high-load episodes tend to be more often in the classroom plane, while the low-load tend to be in the individual/group plane. However, looking at the two load dimensions, it seems like the INDividual and CLSsroom levels are very close together (GRP is very infrequent). Probably we need to analyze the data on a teacher level to see clear trends...
+Analyzing the overall data, the distribution with respect to **Social plane** is statistically significant, and the high-load episodes tend to be more often in the classroom plane, while the low-load tend to be in the individual/group plane. 
 
+However, looking at the two load dimensions, it seems like the GRP and CLSsroom levels are very close together in terms of saccade/variation dimension (and far from INDividual), and that differences in the pupil vs. fixation dimension are small. Probably we need to analyze the data on a technology/session level to see clear trends...
+
+However, the HMM states seem to separate quite well the social levels: IND tend to be in the low-load state, CLS in the high-load or high-load pupil mean states, and GRP in the mid-low states (either high on pupil mean or fixations).
+
+Let us look and compare the results for the different kinds of sessions:
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Expert teacher analysis
-expertdata$Social <- factor(expertdata$Social) # To eliminate nonexistent levels
+# Usual technology
+usualdata$Social <- factor(usualdata$Social) # To eliminate nonexistent levels
 
-behdata <- expertdata[(expertdata$CoarseLoad==4|expertdata$CoarseLoad==0)&(!is.na(expertdata$Social)),]
+behdata <- usualdata[(!is.na(usualdata$Social)),]
 behdata$Social <- factor(behdata$Social)
 # chi-squared test and counts/residuals table for social plane of interaction
 tabSoc <- table(behdata$CoarseLoad,behdata$Social)
@@ -482,75 +742,102 @@ tabSoc
 chisq.test(tabSoc)$residuals
 
 # Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-g1 <- ggplot(expertdata[!is.na(expertdata$Social),],aes(Social,FineLoad)) + geom_boxplot(aes(fill=Social))
+g1 <- ggplot(usualdata[!is.na(usualdata$Social),],aes(Social,FineLoad)) + geom_boxplot(aes(fill=Social)) + geom_jitter(aes(col=session))
 print(g1)
 # Density plots for the PCA dimensions for each kind of activity
-g1 <- ggplot(expertdata[!is.na(expertdata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
-print(g1)
-g2 <- ggplot(expertdata[!is.na(expertdata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
-print(g2)
+# g1 <- ggplot(usualdata[!is.na(usualdata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
+# print(g1)
+# g2 <- ggplot(usualdata[!is.na(usualdata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
-res.pca = PCA(expertdata[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+res.pca = PCA(usualdata[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 #plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
 # Comparison against the HMM states of load
-hmmSocTab <- xtabs(~Social+MMstate, data=expertdata[!is.na(expertdata$Social),])
+hmmSocTab <- xtabs(~Social+MMstate, data=usualdata[!is.na(usualdata$Social),])
 chisq.test(hmmSocTab)
 hmmSocTab
 chisq.test(hmmSocTab)$residuals
 
 ```
 
-In the case of the **expert** teacher, there is a certain trend of **Social** plane being more class-level in the high-load episodes, but it is not statistically significant. This trend can be seen more clearly in the pupil-diameter dimension of the load metrics.
-
-Even though these trends are not clear, the HMM load states seem to be related to the social level: CLS seem to be most prominently in the "mid load state", while INDividual is more common in the "low load high fixation" state (but still the individual level episodes are too few to ascertain clearly these trends)
+In the case of the **usual technology** teacher, the same clear trend of **Social** plane being more class-level in the high-load episodes exists, and individual-lelel in the low-load ones (there were not enough group-level interactions). We see that the differences among both are more prominent in the pupil mean vs fixation dimension. The HMM states clearly indicate the INDividual episodes in a low-load state, and the class-level ones in the high-load, pupil mean state (similar to the PCA dimension results)
 
 
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Novice teacher analysis
-novicedata$Social <- factor(novicedata$Social) # To eliminate nonexistent levels
+# Novel technology analysis
+noveldata$Social <- factor(noveldata$Social) # To eliminate nonexistent levels
+noveldata3$Social <- factor(noveldata3$Social) # To eliminate nonexistent levels
+noveldata4$Social <- factor(noveldata4$Social) # To eliminate nonexistent levels
 
-behdata <- novicedata[(novicedata$CoarseLoad==4|novicedata$CoarseLoad==0)&(!is.na(novicedata$Social)),]
+behdata <- noveldata[(!is.na(noveldata$Social)),]
+behdata3 <- noveldata3[(!is.na(noveldata3$Social)),]
+behdata4 <- noveldata4[(!is.na(noveldata4$Social)),]
 behdata$Social <- factor(behdata$Social)
+behdata3$Social <- factor(behdata3$Social)
+behdata4$Social <- factor(behdata4$Social)
 # chi-squared test and counts/residuals table for social plane of interaction
 tabSoc <- table(behdata$CoarseLoad,behdata$Social)
 chisq.test(tabSoc)
 tabSoc
 chisq.test(tabSoc)$residuals
+tabSoc <- table(behdata3$CoarseLoad,behdata3$Social)
+chisq.test(tabSoc)
+tabSoc
+chisq.test(tabSoc)$residuals
+tabSoc <- table(behdata4$CoarseLoad,behdata4$Social)
+chisq.test(tabSoc)
+tabSoc
+chisq.test(tabSoc)$residuals
+
 
 # Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-g1 <- ggplot(novicedata[!is.na(novicedata$Social),],aes(Social,FineLoad)) + geom_boxplot(aes(fill=Social))
+g1 <- ggplot(noveldata[!is.na(noveldata$Social),],aes(Social,FineLoad)) + geom_boxplot(aes(fill=session)) + geom_jitter(aes(col=session))
 print(g1)
 # Density plots for the PCA dimensions for each kind of activity
-g1 <- ggplot(novicedata[!is.na(novicedata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
-print(g1)
-g2 <- ggplot(novicedata[!is.na(novicedata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
-print(g2)
+# g1 <- ggplot(noveldata[!is.na(noveldata$Social),],aes(PupilLoadDim)) + geom_density(aes(col=Social))
+# print(g1)
+# g2 <- ggplot(noveldata[!is.na(noveldata$Social),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Social))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
-res.pca = PCA(novicedata[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
-#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+res.pca = PCA(noveldata[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+res.pca = PCA(noveldata3[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+res.pca = PCA(noveldata4[, c(3:6, 13)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
-# Comparison against the HMM states of load
-hmmSocTab <- xtabs(~Social+MMstate, data=novicedata[!is.na(novicedata$Social),])
+# Comparison against the HMM states of load -- session by session, since the states are different
+noveldata3$MMstate <- factor(noveldata3$MMstate)
+hmmSocTab <- xtabs(~Social+MMstate, data=noveldata3[!is.na(noveldata3$Social),])
+chisq.test(hmmSocTab)
+hmmSocTab
+chisq.test(hmmSocTab)$residuals
+noveldata4$MMstate <- factor(noveldata4$MMstate)
+hmmSocTab <- xtabs(~Social+MMstate, data=noveldata4[!is.na(noveldata4$Social),])
 chisq.test(hmmSocTab)
 hmmSocTab
 chisq.test(hmmSocTab)$residuals
 
 ```
 
-In the case of the **novice** teacher, there is a more clear trend of **Social** plane being more class-level in the high-load episodes, which in this case _is_ statistically significant. This trend can be seen more clearly in the pupil-diameter dimension of the load metrics, but also on the fixation/saccade one (classroom-level seem to be more fixation-heavy).
+In the case of the **novel technology**, we see the same trends, but in a slightly less clear manner (but still statistically significant): CLS is high-load, GRP is low-load. The trends in the second session seem less clear than in the first one with novel technology, though. Also similar to the usual technology case, the social level is mainly different in terms of the 2nd dimension (pupil mean vs. fixation).
 
-The HMM load states seem to be also related to the social level: CLS seem to be most prominently in the "high load fixation" and "mid-load high fixation" states, while INDividual is more common in the "low load" state (but still the individual level episodes are relatively few to make strong claims).
+The HMM states, again, clearly put CLS in mid-high pupil mean or high-load or mid-load states, and GRP more into mid-low pupil or low-load states.
+
+**Comparison between usual and novel technology**: both kinds of sessions are consistently showing how CLS is generally a high-load state, while GRP or IND are lower-load episodes, and that differences are especially seen along the pupil mean dimension of load.
 
 
+#### Gaze focus dimension
+
+**Note: in the second novel session the gaze pointer seemed to be miscalibrated, so the behavioral results for that session in terms of gaze focus should be taken with a pinch of salt**
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
 # FOCUS
 # Overall data analysis
-behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Focus)),]
+behdata <- loaddata[(!is.na(loaddata$Focus)),]
 behdata$Focus <- factor(behdata$Focus)
 # chi-squared test and counts/residuals table for main focus of gaze
 tabFoc <- table(behdata$CoarseLoad,behdata$Focus)
@@ -559,35 +846,34 @@ tabFoc
 chisq.test(tabFoc)$residuals
 
 # Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-g1 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus))
+g1 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus)) + geom_jitter(aes(col=session))
 print(g1)
 # Density plots for the PCA dimensions for each kind of activity ... not very readable
-g1 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
-print(g1)
-g2 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
-print(g2)
+# g1 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
+# print(g1)
+# g2 <- ggplot(loaddata[!is.na(loaddata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
 res.pca = PCA(loaddata[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 #plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
 # Comparison against the HMM states of load
-# hmmFocTab <- xtabs(~Focus+MMstate, data=loaddata[!is.na(loaddata$Focus),])
-# chisq.test(hmmFocTab)
-# hmmFocTab
-# chisq.test(hmmFocTab)$residuals
+hmmFocTab <- xtabs(~Focus+MMstate, data=loaddata[!is.na(loaddata$Focus),])
+chisq.test(hmmFocTab)
+hmmFocTab
+chisq.test(hmmFocTab)$residuals
 ```
 
-The overall analysis of **Gaze focus** shows that it is very unlikely to be independent of the cognitive load measures. The residuals tell us that high-load episodes are more often looking at the WHITeboard, or FACes of people. Low-load are majoritarily focusing on the teacher or student's SCOMPuter, as well as the PROJector.
+The overall analysis of **Gaze focus** shows that it is very unlikely to be independent of the cognitive load measures. The residuals (and the boxplots of the fine load) tell us that high-load episodes are more often looking at the FACes of people, while low-load are majoritarily focusing on the student's LAPtops, PAPer elements with exercises, teacher's TCOMPuter or the PRJector or the TABletop (in the novel technology sessions).
 
-The PCA dimensions, however, show how SCOMP is rather high in pupil-diameter and fixation dimensions of load, while most of the others score relatively low on pupil diameter dimension, leaning towards saccadic load.
+The PCA dimensions, however, show how differences are mostly in the variance/saccade dimension (with FAC at the positive side, along wth PRJ) and PAP, TCOMP, LAP in the negative side. This is confirmed by the separation between HMM states in terms of gaze focus: FACes tend to be in high-load states, or mid-high load states; TCOMP is in low-mid fixation state; LAP and PAP tend to be in low-load or low-mid states.
 
-These slightly contradictory results probably indicate that we should look also at a teacher-by-teacher basis to tear apart these trends more clearly.
-
+However, let us look at the gaze focus trends differences between the sessions with the usual and novel technologies:
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Expert data analysis
-behdata <- expertdata[(expertdata$CoarseLoad==4|expertdata$CoarseLoad==0)&(!is.na(expertdata$Focus)),]
+# Usual data analysis
+behdata <- usualdata[(!is.na(usualdata$Focus)),]
 behdata$Focus <- factor(behdata$Focus)
 # chi-squared test and counts/residuals table for main focus of gaze
 tabFoc <- table(behdata$CoarseLoad,behdata$Focus)
@@ -596,37 +882,30 @@ tabFoc
 chisq.test(tabFoc)$residuals
 
 # Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-g1 <- ggplot(expertdata[!is.na(expertdata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus))
+g1 <- ggplot(usualdata[!is.na(usualdata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus)) + geom_jitter(aes(col=session))
 print(g1)
 # Density plots for the PCA dimensions for each kind of activity ... not very readable
-g1 <- ggplot(expertdata[!is.na(expertdata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
-print(g1)
-g2 <- ggplot(expertdata[!is.na(expertdata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
-print(g2)
+# g1 <- ggplot(usualdata[!is.na(usualdata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
+# print(g1)
+# g2 <- ggplot(usualdata[!is.na(usualdata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
-res.pca = PCA(expertdata[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
-#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+res.pca = PCA(usualdata[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
 # Comparison against the HMM states of load
-expertdata$Focus <- factor(expertdata$Focus) # We remove nonexistent focus levels
-hmmFocTab <- xtabs(~Focus+MMstate, data=expertdata[!is.na(expertdata$Focus),])
+usualdata$Focus <- factor(usualdata$Focus) # We remove nonexistent focus levels
+hmmFocTab <- xtabs(~Focus+MMstate, data=usualdata[!is.na(usualdata$Focus),])
 chisq.test(hmmFocTab)
 hmmFocTab
 chisq.test(hmmFocTab)$residuals
 ```
 
-For the sessions of the **expert teacher**, we can see that the main gaze focus seems significantly related to the cognitive load measures. High-load episodes seem to be rather looking at FACes and the WHITeboard, while low-load episodes seem to be more on the teacher's TCOMPuter or the PROJector.
-
-The PCA dimensions do not seem to show such clear trends: from those gaze focuses of which we have enough cases, only TCOMP has substantially lower pupil-diameter-related load, and the differences in terms of fixation-saccade are less noticeable (WHIT being higher in the fixation-side and PROJ/TCOMP more on the saccade side).
-
-The HMM load states seem to be clearly linked with the gaze focus, with TCOMP being more on the "low-load but high fixation" state, FAC, PROJ and WHIT being on the "mid-load" state.
-
-Hence, we see that even if there is a certain trend of faces and the whiteboard being higher load, and TCOMP being lower load, but these trends are not so clear, with _a lot of episodes falling in the "mid-load"_.
+For the sessions of the **usual technology**, we can see that the main gaze focus seems significantly correlated with the coarse and fine load, with the FACes being the high-load episodes, and LAP, PAP and TCOMP being lower-load. Again, we see how these differences are mostly in the pupil mean (FAC) vs. fixation (LAP, PAP, TCOMP) dimension. The HMM states confirm that FAC tends to be in a high-load pupil mean state, while LAP, PAP tend to be in the low-load state, and TCOMP tends to be in the low-mid fixation-heavy state.
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Novice data analysis
-behdata <- novicedata[(novicedata$CoarseLoad==4|novicedata$CoarseLoad==0)&(!is.na(novicedata$Focus)),]
+# Novel technology analysis
+behdata <- noveldata[(!is.na(noveldata$Focus)),]
 behdata$Focus <- factor(behdata$Focus)
 # chi-squared test and counts/residuals table for main focus of gaze
 tabFoc <- table(behdata$CoarseLoad,behdata$Focus)
@@ -635,89 +914,226 @@ tabFoc
 chisq.test(tabFoc)$residuals
 
 # Plotting against the FineLoad is not very revealing, as we took extreme values and the averages will always be around the average values!
-g1 <- ggplot(novicedata[!is.na(novicedata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus))
+g1 <- ggplot(noveldata[!is.na(noveldata$Focus),],aes(Focus,FineLoad)) + geom_boxplot(aes(fill=Focus)) + geom_jitter(aes(col=session))
 print(g1)
 # Density plots for the PCA dimensions for each kind of activity ... not very readable
-g1 <- ggplot(novicedata[!is.na(novicedata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
-print(g1)
-g2 <- ggplot(novicedata[!is.na(novicedata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
-print(g2)
+# g1 <- ggplot(noveldata[!is.na(noveldata$Focus),],aes(PupilLoadDim)) + geom_density(aes(col=Focus))
+# print(g1)
+# g2 <- ggplot(noveldata[!is.na(noveldata$Focus),],aes(EyeMoveFixLoadDim)) + geom_density(aes(col=Focus))
+# print(g2)
 # Another way of seeing this, in the PCA diagram
-res.pca = PCA(novicedata[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
-#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+res.pca = PCA(noveldata[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+res.pca = PCA(noveldata3[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+res.pca = PCA(noveldata4[, c(3:6, 11)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
 # Comparison against the HMM states of load
-novicedata$Focus <- factor(novicedata$Focus) # We remove nonexistent focus levels
-hmmFocTab <- xtabs(~Focus+MMstate, data=novicedata[!is.na(novicedata$Focus),])
+noveldata3$Focus <- factor(noveldata3$Focus) # We remove nonexistent focus levels
+hmmFocTab <- xtabs(~Focus+MMstate, data=noveldata3[!is.na(noveldata3$Focus),])
+chisq.test(hmmFocTab)
+hmmFocTab
+chisq.test(hmmFocTab)$residuals
+noveldata4$Focus <- factor(noveldata4$Focus) # We remove nonexistent focus levels
+hmmFocTab <- xtabs(~Focus+MMstate, data=noveldata4[!is.na(noveldata4$Focus),])
 chisq.test(hmmFocTab)
 hmmFocTab
 chisq.test(hmmFocTab)$residuals
 ```
 
-Interestingly, in the case of the **novice teacher** we cannot exclude statistically that it is unrelated to load (maybe due to the lower amount of data available). There is a certain trend of FACes being high load and SCOMP and TCOMP being lower load. This trend is quite clear in the pupil-diameter dimension of load, but not so much in the fixation/saccades one.
+In the case of the **novel technology** the trends are somewhat similar, substituting the laptop with the TABletops: FACes tend to be most of the high-load episodes, while TAB (and to a lesser extent, PRJector) is the main focus in low-load episodes. As in previous analyses, we can see how the two sessions are different in their distributions along the two dimensions (with the second novel session being more stretched in the saccade/variation dimension -- maybe due to the miscalibration noted above?).
 
-The HMM load states seem to be clearly linked with the gaze focus, with FACes being in the "mid-load high fixation" state, SCOMP and TCOMP being more on "low-load" or "mid-load high-saccade" states.
+The separation provided by the HMM states is somewhat confirming this: FAC tends to be more on the high, mid-high or mid load states, while TAB are in the low or mid-low load states.
 
-Hence, we see that even if there is a certain trend of faces being higher load (common with the expert teacher), and TCOMP (also seen in the expert) and SCOMP being lower load, but still _a lot of episodes falling in the "mid-load"_.
+**Comparison between novel and usual technologies**: the results are largely compatible, if we account for the fact that different technologies account for different gaze focuses: the FACes of student are invariable classified in the high-load episodes and states, while the technology itself (LAP or TAB or TCOMP) tends to be more often the focus in the low-load episodes/states.
+
 
 ### E: Session-level analysis and comparison
 
-Since we had no subjective ratings (for the session or for individual episodes) for cognitive load, all we can do is compare the quantitative, sensor-based load values for each session, to get an idea of which session could have been more or less "loading"
+There are several ways in which we can compare the overall load and experience of orchestration among sessions:
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Compare subjective ratings and comments
+setwd(paste(rootdir,"/data/study3",sep=""))
+
+sessionusual <- read.csv("ISL2014BASELINE-sessionratings.csv", sep=";")
+sessionnovel <- read.csv("ISL2015NOVEL-sessionratings.csv", sep=",")
+rbind.all.columns <- function(x, y) {
+ 
+    x.diff <- setdiff(colnames(x), colnames(y))
+    y.diff <- setdiff(colnames(y), colnames(x))
+ 
+    x[, c(as.character(y.diff))] <- NA
+ 
+    y[, c(as.character(x.diff))] <- NA
+ 
+    return(rbind(x, y))
+}
+sessiondata <- rbind.all.columns(sessionusual,sessionnovel)
+
+print(sessiondata[,c("Session","Subj.Mental.Effort","Subj.Difficulty")])
+```
+
+In most cases the teacher assessed the overall load as involving `some mental effort' (6 in a scale of 1-9 in the standard subjective mental effort scale), with the exception of the first novel technology session, which was rated 7 (high mental effort). The teacher, however, considered the second usual session as slightly more difficult to manage (6 vs. 5 out of 9), and viceversa for the novel technology sessions (6 in the first one, 5 in the second one). 
+
+This perception can be expanded by looking at the teacher's responses to the TLX questionnaire about the sessions workload: 
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+print(sessiondata[,2:14])
+
+sessiondata$SessionType <- as.factor(c("Usual","Usual","Novel","Novel"))
+sessiondata$Total.Mental <- sessiondata$Value.Mental.Demand * sessiondata$Importance.Mental.Demand
+sessiondata$Total.Physical <- sessiondata$Value.Physical.Demand * sessiondata$Importance.Physical.Demand
+sessiondata$Total.Temporal <- sessiondata$Value.Temporal.Demand * sessiondata$Importance.Temporal.Demand
+sessiondata$Total.Performance <- sessiondata$Value.Performance * sessiondata$Importance.Performance
+sessiondata$Total.Effort <- sessiondata$Value.Effort * sessiondata$Importance.Effort
+sessiondata$Total.Frustration <- sessiondata$Value.Frustration * sessiondata$Importance.Frustration
+
+qplot(sessiondata$Session,sessiondata$TLX.Total,fill=sessiondata$SessionType)+geom_bar(stat = "identity")
+
+# We see the averages between usual and novel technologies
+aggregate(. ~ SessionType, data=sessiondata[,c(23:29)], FUN=mean)
+```
+
+In all cases responses were quite similar (overall workload scores of 48 to 62 out of 100). However, by looking at the scores and weighting of the different workload components (mental, temporal or physical demands, performance, effort and frustration), we see that in session 2 the value and weighting of the 'frustration' component were much higher than in session 1; conversely, the novel technology sessions were quite similar, except for the frustration which was very noticeably decreased in the last session.
+
+If we compare the average scores of the usual and novel technology sessions, we see that, while their average loads are comparable (0.2% difference in favor of the usual technology), the workload experiences were quite different: Usual sessions involved more load from mental demand, effort and frustration; novel technology sessions involved more load from temporal demand.
+
+```{r,message=FALSE}
+# We print the especially difficult moment remarks
+print("Especially difficult -- Usual")
+print(as.character(sessiondata[sessiondata$SessionType=="Usual",17]))
+print("Especially difficult -- Novel")
+print(as.character(sessiondata[sessiondata$SessionType=="Novel",17]))
+
+# We print the especially easy moment remarks
+print("Especially easy -- Usual")
+print(as.character(sessiondata[sessiondata$SessionType=="Usual",18]))
+print("Especially easy -- Novel")
+print(as.character(sessiondata[sessiondata$SessionType=="Novel",18]))
+```
+
+The qualitative (open) responses about self-perceived high-load episodes were also quite similar in each condition, but the emphases varied from the usual to the novel technology sessions: in the usual technology sessions the teacher was focusing more on students progress, understanding, and in the second session, some disciplinary aspects; in the novel technology the focus was more on the temporal demands, technical glitches and other concrete doubts about the game.
+
+
+We can also, however, look at the subjective ratings and remarks from the stimulated recall interviews:
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+srdata[srdata$session==sessions[1] | srdata$session==sessions[2],"SessionType"] <- "Usual"
+srdata[srdata$session==sessions[3] | srdata$session==sessions[4],"SessionType"] <- "Novel"
+srdata$SessionType <- factor(srdata$SessionType)
+
+qplot(session,Subjective.Value, data=srdata, geom="boxplot", fill=session)+geom_jitter()
+
+codes <- flattenCodeData(srdata,codecol = 6,additionalcol = c(3,7,8))
+
+qplot(Code,data=codes,geom="bar",fill=SessionType)
+```
+
+Interesingly, we can see how the selected episodes from the novel technology sessions were in general rated as higher mental effort by the teacher during the interview. We see that some of the notions mentioned are common to both kinds of sessions (Assesment, Modelling, Following progress) while others are specific of the activities being held, especially in the novel sessions (Guiding, Frustration, Anticipation, Collaboration, and Game-specific remarks)
+
+
+To triangulate this perception with more objective data, we can also look at the eye-tracking measures of load across sessions and session types.
+
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+loaddata[loaddata$session==sessions[1] | loaddata$session==sessions[2],"SessionType"] <- "Usual"
+loaddata[loaddata$session==sessions[3] | loaddata$session==sessions[4],"SessionType"] <- "Novel"
+loaddata$SessionType <- factor(loaddata$SessionType)
+
 # Plotting the FineLoad of each session
-g1 <- ggplot(loaddata,aes(session,FineLoad)) + geom_boxplot(aes(fill=session))
+g1 <- ggplot(loaddata,aes(session,FineLoad)) + geom_boxplot(aes(fill=SessionType))
 print(g1)
 g1 <- ggplot(loaddata,aes(FineLoad)) + geom_density(aes(col=session))
 print(g1)
 
 # Plotting against the PCA and HMM dimensions
-g1 <- ggplot(loaddata,aes(PupilLoadDim)) + geom_density(aes(col=session))
-print(g1)
-g1 <- ggplot(loaddata,aes(EyeMoveFixLoadDim)) + geom_density(aes(col=session))
-print(g1)
+# g1 <- ggplot(loaddata,aes(PupilLoadDim)) + geom_density(aes(col=session))
+# print(g1)
+# g1 <- ggplot(loaddata,aes(EyeMoveFixLoadDim)) + geom_density(aes(col=session))
+# print(g1)
+
+#by session
 loaddata$session <- factor(loaddata$session)
 res.pca = PCA(loaddata[, c(3:6, 1)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
-#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
+plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+#by session type
+res.pca = PCA(loaddata[, c(3:6, 36)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
 plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
 
-# Comparison against the HMM states of load
-#hmmSessTab <- xtabs(~session+MMstate, data=loaddata)
-#chisq.test(hmmSessTab)
-#hmmSessTab
-#chisq.test(hmmSessTab)$residuals
+
+# Comparison against the HMM states of load -- it may not make much sense since states are session-dependent
+# We aggregate the levels with similar labels
+loaddata$MMstateType <- loaddata$MMstate
+levels(loaddata$MMstateType) <- c("Low","HiSacVar","MidLow",
+                              "Hi", "MidHi", "MidLow",
+                              "Mid","MidLow","MidHi","Hi")
+
+hmmSessTab <- xtabs(~session+MMstate, data=loaddata)
+chisq.test(hmmSessTab)
+hmmSessTab
+chisq.test(hmmSessTab)$residuals
+
+hmmSessTab <- xtabs(~SessionType+MMstateType, data=loaddata)
+chisq.test(hmmSessTab)
+hmmSessTab
+chisq.test(hmmSessTab)$residuals
 ```
 
-We see that differences in general (fine) load were rather minimal, with maybe a slightly higher load in the expert's session 1. However, we do see differences between sessions in the pupil diameter and fixation/saccade PCA dimensions (higher for the novice teacher session).
+Interestingly, looking at the coarse and fine load distributions, although differences are not very large, there is a noticeable increase of average load indices in the fourth (second novel) session -- contrary to the teacher's subjective perception. These differences seem to be largely on the pupil mean vs. long fixation dimension (long fixations being higher in the first novel session and pupil diameter being larger in the the second novel one); on average, the novel sessions seemed to have higher saccadic/pupil variation load.
+
+Also, from the HMM states (or, rather, the different type of states), we see that the usual sessions had larger number of Low and Hi state episodes, while the novel sessions had more mid-low, mid and mid-hi state episodes (not a very clear outcome, but the distribution of novel session episodes also seems slanted towards the higher end).
 
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-# Expert session
-# Plotting the FineLoad of each session
-g1 <- ggplot(expertdata,aes(session,FineLoad)) + geom_boxplot(aes(fill=session))
-print(g1)
-g1 <- ggplot(expertdata,aes(FineLoad)) + geom_density(aes(col=session))
-print(g1)
+Finally, another way of comparing the sessions is through the (normalized) median values of each of the sessions, upon which the coarse load index was calculated:
 
-# Plotting against the PCA and HMM dimensions
-g1 <- ggplot(expertdata,aes(PupilLoadDim)) + geom_density(aes(col=session))
-print(g1)
-g1 <- ggplot(expertdata,aes(EyeMoveFixLoadDim)) + geom_density(aes(col=session))
-print(g1)
-expertdata$session <- factor(expertdata$session)
-res.pca = PCA(expertdata[, c(3:6, 1)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=5)
-#plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5)
-plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=5, invisible="ind")
+```{r, message=FALSE, warning=FALSE}
+#median values for each session
+#aggregate(cbind(value.Mean.norm,value.SD.norm,value.Fix.norm,value.Sac.norm)~session,data = loaddata, FUN = median)
+library(reshape)
 
-# Comparison against the HMM states of load
-#hmmSessTab <- xtabs(~session+MMstate, data=expertdata)
-#chisq.test(hmmSessTab)
-#hmmSessTab
-#chisq.test(hmmSessTab)$residuals
+data <- aggregateEpisodeData(sessions, datadir=paste(rootdir,"/data/study3",sep=""), initendtimes=NULL, SEPARATOR=";") # For this study the raw data is semicolon-separated, at least the fixation/saccades!
+data <- data[,c(1:5,12)] # We select only the load-related metrics
+data$Session <- data$session
+
+# This dataframe will contain the data with the added Load Index data, calculated with the (normalized) median values of session 2
+loaddata2 <- data.frame()
+
+# We calculate the load index, considering normalized median of session 2 values for the median cut
+loaddata2 <- calculateLoadIndexOtherSessionNormalized(data, refsession="ISL2014BASELINE-Session1-eyetracking", meanlabel="value.Mean", sdlabel="value.SD", fixlabel="value.Fix", saclabel="value.Sac")
+
+# Average load index when using the first session as a reference
+aggregate(Load~Session,data=loaddata2,mean)
+
+# Now, loaddata will contain the data to be summarized/visualized
+# We eliminate the NAs
+#loaddata2 <- loaddata2[complete.cases(loaddata2),]
+# We do a basic histogram of the amount episodes regarding their Load Index of each session, 
+# using its session median to perform the cut (and normalized by the number of episodes in each session)
+loadtabSelf2 <- table(loaddata2$Load, loaddata2$Session)
+countsDataSelf2 <- melt(loadtabSelf2, varnames=c("Load","Session"))
+countsDataSelf2$num.Episodes <- numeric(nrow(countsDataSelf2))
+for(session in sessions){
+     countsDataSelf2[countsDataSelf2$Session == session,"num.Episodes"] <- sum(countsDataSelf2[countsDataSelf2$Session == session , "value"])
+}
+# We change the values of the session to something shorter, for aesthetic reasons
+#countsDataSelf2$Session <- mapvalues(countsDataSelf2$Session, from = sessions, to = c("Session 1", "Session 2"))
+# We draw the plot of count proportions for the load index
+ggplot(countsDataSelf2,aes(x=Load,y=value/num.Episodes,fill=Session))+
+    geom_bar(stat="identity",position="dodge")+
+    theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        legend.text=element_text(size=15),
+        legend.title=element_text(size=15))+
+    xlab("Load indices calculated using (normalized)\nmedians for session 2 in both sessions")+
+    ylab("Proportions of the load indices")
+
+# We check whether the two session distributions are significantly different
+chisq.test(loadtabSelf2)
 ```
 
-However, comparing the **two sessions by the expert teacher**, we find that both sessions are rather similar with respect to fine load, and with respect to the fixation/saccade dimension. However, there is a quite noticeable difference in terms of the pupil diameter dimension, with session 2 being higher load.
+In this case, the average coarse load index values when considering the first session as a reference, paint a picture similar to the overall subjective ratings: the second usual session was more load than the first, and the first novel one was even more load, due to the novelty of the situation. The last session with novel technology was comparable to the first one, once the teacher had got used to the situation and the technology.
 
 
 

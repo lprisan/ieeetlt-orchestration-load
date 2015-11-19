@@ -1,6 +1,6 @@
 # Given a dataset with a number of load-related metrics, marked by columns, 
 # it calculates the coarse and fine load indices
-calculateCoarseFineLoadIndex <- function(data, loadcolumns, normalize=F){
+calculateCoarseFineLoadIndex <- function(data, loadcolumns, normalize=F, inversecols=NULL){
     
     sessions <- unique(data$session)
     
@@ -52,7 +52,50 @@ calculateCoarseFineLoadIndex <- function(data, loadcolumns, normalize=F){
             colnameperc <- append(colnameperc, colnamep)
             
         }
-        
+
+        if(!is.null(inversecols)){
+            
+            for(col in inversecols){
+                colname <- names(sessiondata)[[col]]
+                
+                #If normalization is needed, we normalize by the first window value
+                colnamenorm <- ""
+                if(normalize){
+                    colnamenorm <- paste(colname,".norm",sep="")
+                    if(sessiondata[1,col]!=0) sessiondata[,colnamenorm] <- sessiondata[,col]/sessiondata[1,col]
+                    else sessiondata[,colnamenorm] <- sessiondata[,col] # If it is the rare case of the median being a zero count
+                }
+                
+                #Calculate the median of the session, and the median cut
+                colnamecut <- paste(colname,".below",sep="")
+                medsession <- 0
+                if(normalize){
+                    medsession <- median(sessiondata[,colnamenorm], na.rm=T)   
+                    sessiondata[,colnamecut] <- as.numeric(sessiondata[,colnamenorm] < medsession)
+                }
+                else{
+                    medsession <- median(sessiondata[,col], na.rm=T)   
+                    sessiondata[,colnamecut] <- as.numeric(sessiondata[,col] < medsession)
+                }
+                colnamecuts <- append(colnamecuts, colnamecut)
+                
+                #Calculate the percentile within the session
+                colnamep <- paste(colname,".ipercent",sep="")
+                percentile <- 0
+                if(normalize){
+                    percentile <- ecdf(sessiondata[,colnamenorm])
+                    sessiondata[,colnamep] <- 100-(percentile(sessiondata[,colnamenorm])*100)
+                }
+                else{
+                    percentile <- ecdf(sessiondata[,col])
+                    sessiondata[,colnamep] <- 100-(percentile(sessiondata[,col])*100)
+                }
+                colnameperc <- append(colnameperc, colnamep)
+                
+            }
+
+        }
+                
         # We add up the median cuts, to get the coarse index
         sessiondata$CoarseLoad <- apply(sessiondata[,colnamecuts],1,sum)
                 

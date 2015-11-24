@@ -214,6 +214,25 @@ numstates <- 4
 # levels(loaddata$MMstate) <- c("HiFixLoadState","HiSacLoadState","MidLoadState","LowLoadState")
 
 # Usual tech
+
+# We plot the BIC for different number of states, just to check
+states <- 2:16
+BICs <- 0
+for(i in states){
+#    print(paste(numstates,"..."))
+    # Overall
+    set.seed(1)
+    #set up the HMM model
+    mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=usualdata, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(usualdata$session)), verbose=F)
+    #fit the model 
+    f <- fit(mod, verbose=F)
+#    print(f)
+    BICs[i] <- BIC(f)
+}
+qplot(1:16,BICs,geom="line")
+
+
+
 set.seed(1)
 #set up the HMM model
 mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=usualdata, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(usualdata$session)), verbose=F)
@@ -256,6 +275,23 @@ Also, looking at the two dimensions of load from the PCA we see how these states
 
 # Novel tech 3
 
+# We plot the BIC for different number of states, just to check
+states <- 2:16
+BICs <- 0
+for(i in states){
+#    print(paste(numstates,"..."))
+    # Overall
+    set.seed(1)
+    #set up the HMM model
+    mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=noveldata3, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(noveldata3$session)), verbose=F)
+    #fit the model 
+    f <- fit(mod, verbose=F)
+#    print(f)
+    BICs[i] <- BIC(f)
+}
+qplot(1:16,BICs,geom="line")
+
+
 set.seed(3)
 #set up the HMM model
 mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=noveldata3, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(noveldata3$session)), verbose=F)
@@ -297,6 +333,25 @@ Also, looking at the two dimensions of load from the PCA we see how these states
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 # Novel tech 4
+
+# TODO: Check this data... the hmm crashes!
+# # We plot the BIC for different number of states, just to check
+# hmmdata <- noveldata4[complete.cases(noveldata4[,c("value.Mean","value.SD","value.Sac","value.Fix")]),]
+# states <- 2:16
+# BICs <- 0
+# for(i in states){
+# #    print(paste(numstates,"..."))
+#     # Overall
+#     set.seed(55)
+#     #set up the HMM model
+#     mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=hmmdata, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(hmmdata$session)), verbose=F)
+#     #fit the model 
+#     f <- fit(mod, verbose=F)
+# #    print(f)
+#     BICs[i] <- BIC(f)
+# }
+# qplot(1:16,BICs,geom="line")
+
 
 set.seed(6)
 #set up the HMM model

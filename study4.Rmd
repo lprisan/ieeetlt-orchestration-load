@@ -59,306 +59,317 @@ sessions <-  c("JDC2015-Session1","JDC2015-Session2","JDC2015-Session3","JDC2015
 
 ##############################################
 # Loading and preprocessing of video code data (overall)
-annotationsData <- data.frame()
-
-if(!file.exists(paste(rootdir,"/data/study4/cleanAnnotationData.Rda",sep=""))){
-    
-    for (session in sessions){
-    
-        # We load the video coding data
-        # Parse the XML
-        rawXML <- xmlParse(paste(rootdir,"/data/study4/",session,"-videoCoding.eaf",sep=""))
-        parsedXML <- xmlToList(rawXML)
-        # Extract the time markers for the annotations, to be used later
-        annotationTimes <- data.frame(matrix(unlist(parsedXML[["TIME_ORDER"]]), nrow=length(parsedXML[["TIME_ORDER"]]), byrow=T))
-        names(annotationTimes) <- c("TIME_SLOT_ID", "TIME_VALUE")
-        
-        # We get the data for each Annotation Tier
-        comments <- data.frame(start=numeric(), end=numeric(), annotation=character())
-        social <- data.frame(start=numeric(), end=numeric(), annotation=character())
-        experimental <- data.frame(start=numeric(), end=numeric(), annotation=character())
-        activity <- data.frame(start=numeric(), end=numeric(), annotation=character())
-        recording <- data.frame(start=numeric(), end=numeric(), annotation=character())
-        for (tier in parsedXML[names(parsedXML) %in% "TIER"]){
-            if(class(tier) != "list") next; #If it is an empty tier, it will not be a list, we just pass
-            
-            tierName <- tier$.attrs["TIER_ID"]
-            
-            if(tierName=="Comments"){# The Comments tier
-                for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
-                    annot <- annot2$ALIGNABLE_ANNOTATION
-                    annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
-                                             end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
-                                             annotation=annot$ANNOTATION_VALUE)
-                    comments <- rbind(comments,annotation)
-                }
-            }
-            
-            if(tierName=="Recording markers"){# Recording markers tier
-                for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
-                    annot <- annot2$ALIGNABLE_ANNOTATION
-                    annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
-                                             end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
-                                             annotation=annot$ANNOTATION_VALUE)
-                    recording <- rbind(recording,annotation)
-                }
-            }
-        
-            if(tierName=="Activity"){# Activities tier
-                for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
-                    annot <- annot2$ALIGNABLE_ANNOTATION
-                    annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
-                                             end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
-                                             annotation=annot$ANNOTATION_VALUE)
-                    activity <- rbind(activity,annotation)
-                }
-            }
-            
-            if(tierName=="Social plane"){# social plane tier
-                for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
-                    annot <- annot2$ALIGNABLE_ANNOTATION
-                    annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
-                                             end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
-                                             annotation=annot$ANNOTATION_VALUE)
-                    social <- rbind(social,annotation)
-                }
-            }
-            
-            if(tierName=="Experimental part"){# Experimental part tier
-                for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
-                    annot <- annot2$ALIGNABLE_ANNOTATION
-                    annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
-                                             end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
-                                             annotation=annot$ANNOTATION_VALUE)
-                    experimental <- rbind(experimental,annotation)
-                }
-            }
-            
-        }
-    
-        #Add tier field to all data frames, and put them together, and add the session field too
-        comments$tier = "Comments"
-        recording$tier = "Recording"
-        activity$tier = "Activity"
-        social$tier = "Social"
-        experimental$tier = "Experimental"
-        sessionAnnotations = rbind(comments,recording,activity,social,experimental)
-        sessionAnnotations$session = session
-        # Join all sessions in a single dataframe
-        if(nrow(annotationsData)==0) annotationsData = sessionAnnotations
-        else annotationsData = rbind(annotationsData,sessionAnnotations)
-    
-    }
-    
-    save(annotationsData, file = paste(rootdir,"/data/study4/cleanAnnotationData.Rda",sep=""))
-        
-    
-}else{
-    annotationsData <- get(load(paste(rootdir,"/data/study4/cleanAnnotationData.Rda",sep="")))
-}
-# annotationsData now has the clean video coding data
-
-datadir <- paste(rootdir,"/data/study4",sep="")
-
-####################################################################
-# Preprocessing of the teacher tracker files (from JSON to a data frame with the beacon and accel x,y,z)
-trackerData <- data.frame()
-if(!file.exists(paste(rootdir,"/data/study4/cleanTrackerData.Rda",sep=""))){
-
-        for (session in sessions){
-
-            sessionTrackerData <- data.frame(accelerationX=numeric(),
-                  accelerationY=numeric(),
-                  accelerationZ=numeric(),
-                  timestamp=numeric(),
-                  beaconID=character(),
-                  proximity=numeric(),
-                  distance=numeric(),
-                  rssi=numeric())
-
-            # We get the tracker files for this session
-            filenames <- dir(datadir)[grepl(session,dir(datadir))]
-            filenames <- filenames[grepl("-teacherTracker",filenames)]
-
-            for(file in filenames){# For each file...
-                
-                lines <- paste(readLines(paste(datadir,"/",file,sep="")),collapse="")
-                # Retouch it a bit so that it is proper json
-                lines <- gsub("[]", "", lines, fixed=T)
-                lines <- gsub("][", ",", lines, fixed=T)
-                # We parse the json
-                json_data <- fromJSON(lines)
-                df <- ldply(json_data, data.frame)
-                
-                if(ncol(df)!=ncol(sessionTrackerData)){# If our resulting data frame does not have all columns, we add them (for the rbind to work)
-                    dummy <- data.frame(accelerationX=numeric(), accelerationY=numeric(), accelerationZ=numeric(),
-                                           timestamp=numeric(), beaconID=character(), proximity=numeric(), 
-                                           distance=numeric(), rssi=numeric())
-                    df <- merge(df,dummy,all = T)
-                }
-                
-                sessionTrackerData <- rbind(sessionTrackerData,df)
-                
-            }
-            
-            sessionTrackerData$session <- session
-            if(nrow(trackerData)==0) trackerData <- sessionTrackerData
-            else trackerData <- rbind(trackerData,sessionTrackerData)
-        }
-        
-        # We remove duplicate entries, there can still be entries with the same timestamp, but they will be either an accelerometer or a beacon entry
-        trackerData <- unique(trackerData)
-        
-        save(trackerData, file = paste(rootdir,"/data/study4/cleanTrackerData.Rda",sep=""))
-    
-}else{
-    trackerData <- get(load(paste(rootdir,"/data/study4/cleanTrackerData.Rda",sep="")))
-}
-# trackerData now has the clean teacher tracker/accelerometer data
-
-
-################################################################
-# Preprocessing of the EEG files: for now, only use theta band
-# We get the start/end times of the EEG recording of each session 
-# (manually, from the annotations files -- in seconds, as the EEG files times are in seconds since start of recording)
-eegtimes <- data.frame(start=c(66.567,0,52.600,0),end=c(2371.767,2278.900,2155.200,1557.400),session=sessions)
-eegdata <- data.frame()
-if(!file.exists(paste(datadir,"/cleanEEGData.Rda",sep=""))){
-    for (session in sessions){
-        # We get the EEG file filename
-        filepattern <- paste(session,"-EEG",sep="")
-        filename <- dir(datadir)[grepl(filepattern,dir(datadir))]
-        eegsession <- read.csv2(file = paste(datadir,"/",filename,sep=""))
-        eegsession <- eegsession[,1:13]
-        eegsession$session <- session
-        #Time (s);Electrode;Attention;Meditation;Delta;Theta;Low Alpha;High Alpha;Low Beta;High Beta;Low Gamma;Mid Gamma;Blink Strength
-        eegsession$Time..s. <- as.numeric(as.character(eegsession$Time..s.))
-        eegsession$Electrode <- as.numeric(as.character(eegsession$Electrode))
-        eegsession$Attention <- as.numeric(as.character(eegsession$Attention))
-        eegsession$Meditation<- as.numeric(as.character(eegsession$Meditation))
-        eegsession$Delta<- as.numeric(as.character(eegsession$Delta))
-        eegsession$Theta<- as.numeric(as.character(eegsession$Theta))
-        eegsession$Low.Alpha<- as.numeric(as.character(eegsession$Low.Alpha))
-        eegsession$High.Alpha<- as.numeric(as.character(eegsession$High.Alpha))
-        eegsession$Low.Beta<- as.numeric(as.character(eegsession$Low.Beta))
-        eegsession$High.Beta<- as.numeric(as.character(eegsession$High.Beta))
-        eegsession$Low.Gamma<- as.numeric(as.character(eegsession$Low.Gamma))
-        eegsession$Mid.Gamma<- as.numeric(as.character(eegsession$Mid.Gamma))
-        eegsession$Blink.Strength<- as.numeric(as.character(eegsession$Blink.Strength))
-        if(nrow(eegdata)==0) eegdata <- eegsession
-        else eegdata <- rbind(eegdata,eegsession)
-    }
-    eegdata$session <- factor(eegdata$session)
-    save(eegdata,file = paste(datadir,"/cleanEEGData.Rda",sep=""),compress=TRUE)
-} else {
-    eegdata <- get(load(paste(datadir,"/cleanEEGData.Rda",sep="")))
-}
-#eegdata now has the the clean EEG data
-
-###########################################
-# Merging and aggregation of the different data sources of load and video annotations in 10-second episode
-# We get the time period of interest from the annotation file
-initendtimes <- annotationsData[annotationsData$tier=="Recording" 
-                                & annotationsData$annotation == "Recording", c("start","end","session")]
-
-# Aggregation of the eyetracking data
-eyedata <- aggregateEpisodeData(sessions, datadir=paste(rootdir,"/data/study4",sep=""), initendtimes=initendtimes, SEPARATOR=";") # For this study the raw data is semicolon-separated, at least the fixation/saccades!
-eyedata <- eyedata[,c(1:5,12)] # We select only the load-related metrics
-
-# We calculate the video coding values for the same windows
-videocodedata <- aggregateVideoCodingData(sessions, datadir=paste(rootdir,"/data/study4",sep=""),
-                                          initendtimes=initendtimes)
-
-# Merge video codes and eyetracking        
-totaldata <- merge(eyedata,videocodedata,by=c("time","session"),all=T)
-totaldata <- totaldata[order(totaldata$session,totaldata$time),]
-totaldata$value.Experimental <- factor(totaldata$value.Experimental)
-totaldata$value.Social <- factor(totaldata$value.Social)
-totaldata$value.Activity <- factor(totaldata$value.Activity)
-        
-# We aggregate the EEG data in rolling window episodes (for now, only Theta and attention)
-agEEGdata <- aggregateEEGData(eegdata, eegtimes)
-
-# We merge and align EEG with the previous eyetrack/videocode data
-newtotaldata <- data.frame()
-for(session in sessions){
-    sessiondata <- totaldata[totaldata$session==session,]
-    sessioneeg <- agEEGdata[agEEGdata$session==session,]
-    
-
-    # We know the mistmatch between EEG and eyetrack data episodes comes from 
-    # the late EEG start in session 4, so we aggregate the EEG data accordingly
-    if(nrow(sessiondata)==nrow(sessioneeg)){
-        #Ensure that the episodes are aligned
-        sessiondata <- sessiondata[order(sessiondata$time),]
-        sessioneeg <- sessioneeg[order(sessioneeg$time),]
-        
-        sessiondata$value.Electrode <- sessioneeg$value.Electrode
-        sessiondata$value.Attention <- sessioneeg$value.Attention
-        sessiondata$value.Meditation <- sessioneeg$value.Meditation
-        sessiondata$value.Delta <- sessioneeg$value.Delta
-        sessiondata$value.Theta <- sessioneeg$value.Theta
-        sessiondata$value.Low.Alpha <- sessioneeg$value.Low.Alpha
-        sessiondata$value.High.Alpha <- sessioneeg$value.High.Alpha
-        sessiondata$value.Low.Beta <- sessioneeg$value.Low.Beta
-        sessiondata$value.High.Beta <- sessioneeg$value.High.Beta
-        sessiondata$value.Low.Gamma <- sessioneeg$value.Low.Gamma
-        sessiondata$value.Mid.Gamma <- sessioneeg$value.Mid.Gamma
-        sessiondata$value.Blink.Strength <- sessioneeg$value.Blink.Strength
-    }else{
-        num <- nrow(sessiondata)-nrow(sessioneeg)
-        sessiondata <- sessiondata[order(sessiondata$time),]
-        sessioneeg <- sessioneeg[order(sessioneeg$time),]
-        sessiondata$value.Electrode <- c(rep(NA,num),sessioneeg$value.Electrode)
-        sessiondata$value.Attention <- c(rep(NA,num),sessioneeg$value.Attention)
-        sessiondata$value.Meditation <- c(rep(NA,num),sessioneeg$value.Meditation)
-        sessiondata$value.Delta <- c(rep(NA,num),sessioneeg$value.Delta)
-        sessiondata$value.Theta <- c(rep(NA,num),sessioneeg$value.Theta)
-        sessiondata$value.Low.Alpha <- c(rep(NA,num),sessioneeg$value.Low.Alpha)
-        sessiondata$value.High.Alpha <- c(rep(NA,num),sessioneeg$value.High.Alpha)
-        sessiondata$value.Low.Beta <- c(rep(NA,num),sessioneeg$value.Low.Beta)
-        sessiondata$value.High.Beta <- c(rep(NA,num),sessioneeg$value.High.Beta)
-        sessiondata$value.Low.Gamma <- c(rep(NA,num),sessioneeg$value.Low.Gamma)
-        sessiondata$value.Mid.Gamma <- c(rep(NA,num),sessioneeg$value.Mid.Gamma)
-        sessiondata$value.Blink.Strength <- c(rep(NA,num),sessioneeg$value.Blink.Strength)
-        
-    }
-    
-    if(nrow(newtotaldata)==0) newtotaldata <- sessiondata
-    else newtotaldata <- rbind(newtotaldata,sessiondata)
-}
-
-totaldata <- newtotaldata
-    
-# Aggregation of the accelerometer data for the episodes (for now, only average and SD for each component)
-# We get the start/end times of the accelerometer recording of each session 
-# (manually, from the annotations files -- in milliseconds)
-newtotaldata <- data.frame()
-accdata <- trackerData[complete.cases(trackerData$accelerationX),]
-accdata <- accdata[order(accdata$timestamp),]
-acctimes <- data.frame(start=c(0,3300,0,0),end=c(2305200,2282200,2102600,1901500),session=sessions)
-agAccdata <- aggregateAccelerometerDataWithJerk(accdata, acctimes)
-agAccdata <- agAccdata[order(agAccdata$time),] # We will ignore these timestamps, as we will aggregate them to the master table that uses the eyetracking ones
-for(session in sessions){
-    sessiondata <- totaldata[totaldata$session == session,]
-    sessiondata <- sessiondata[order(sessiondata$time),]
-    
-    sessiondata$value.X.Mean <- agAccdata[agAccdata$session == session , "value.X.Mean"]
-    sessiondata$value.X.SD <- agAccdata[agAccdata$session == session , "value.X.SD"]
-    sessiondata$value.Y.Mean <- agAccdata[agAccdata$session == session , "value.Y.Mean"]
-    sessiondata$value.Y.SD <- agAccdata[agAccdata$session == session , "value.Y.SD"]
-    sessiondata$value.Z.Mean <- agAccdata[agAccdata$session == session , "value.Z.Mean"]
-    sessiondata$value.Z.SD <- agAccdata[agAccdata$session == session , "value.Z.SD"]
-    sessiondata$value.Jerk.Mean <- agAccdata[agAccdata$session == session , "value.Jerk.Mean"]
-    sessiondata$value.Jerk.SD <- agAccdata[agAccdata$session == session , "value.Jerk.SD"]
-
-    if(nrow(newtotaldata)==0) newtotaldata <- sessiondata
-    else newtotaldata <- rbind(newtotaldata,sessiondata)
-}
-totaldata <- newtotaldata
 
 cleandatafile <- "study4ProcessedData.Rda"
-save(totaldata, file=cleandatafile)
+
+totaldata <- data.frame()
+
+if(!file.exists(paste(rootdir,"/data/study4/",cleandatafile,sep=""))){
+    annotationsData <- data.frame()
+
+
+    if(!file.exists(paste(rootdir,"/data/study4/cleanAnnotationData.Rda",sep=""))){
+        
+        for (session in sessions){
+        
+            # We load the video coding data
+            # Parse the XML
+            rawXML <- xmlParse(paste(rootdir,"/data/study4/",session,"-videoCoding.eaf",sep=""))
+            parsedXML <- xmlToList(rawXML)
+            # Extract the time markers for the annotations, to be used later
+            annotationTimes <- data.frame(matrix(unlist(parsedXML[["TIME_ORDER"]]), nrow=length(parsedXML[["TIME_ORDER"]]), byrow=T))
+            names(annotationTimes) <- c("TIME_SLOT_ID", "TIME_VALUE")
+            
+            # We get the data for each Annotation Tier
+            comments <- data.frame(start=numeric(), end=numeric(), annotation=character())
+            social <- data.frame(start=numeric(), end=numeric(), annotation=character())
+            experimental <- data.frame(start=numeric(), end=numeric(), annotation=character())
+            activity <- data.frame(start=numeric(), end=numeric(), annotation=character())
+            recording <- data.frame(start=numeric(), end=numeric(), annotation=character())
+            for (tier in parsedXML[names(parsedXML) %in% "TIER"]){
+                if(class(tier) != "list") next; #If it is an empty tier, it will not be a list, we just pass
+                
+                tierName <- tier$.attrs["TIER_ID"]
+                
+                if(tierName=="Comments"){# The Comments tier
+                    for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
+                        annot <- annot2$ALIGNABLE_ANNOTATION
+                        annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
+                                                 end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
+                                                 annotation=annot$ANNOTATION_VALUE)
+                        comments <- rbind(comments,annotation)
+                    }
+                }
+                
+                if(tierName=="Recording markers"){# Recording markers tier
+                    for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
+                        annot <- annot2$ALIGNABLE_ANNOTATION
+                        annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
+                                                 end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
+                                                 annotation=annot$ANNOTATION_VALUE)
+                        recording <- rbind(recording,annotation)
+                    }
+                }
+            
+                if(tierName=="Activity"){# Activities tier
+                    for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
+                        annot <- annot2$ALIGNABLE_ANNOTATION
+                        annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
+                                                 end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
+                                                 annotation=annot$ANNOTATION_VALUE)
+                        activity <- rbind(activity,annotation)
+                    }
+                }
+                
+                if(tierName=="Social plane"){# social plane tier
+                    for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
+                        annot <- annot2$ALIGNABLE_ANNOTATION
+                        annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
+                                                 end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
+                                                 annotation=annot$ANNOTATION_VALUE)
+                        social <- rbind(social,annotation)
+                    }
+                }
+                
+                if(tierName=="Experimental part"){# Experimental part tier
+                    for(annot2 in tier[names(tier) %in% "ANNOTATION"]){
+                        annot <- annot2$ALIGNABLE_ANNOTATION
+                        annotation <- data.frame(start=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF1"],"TIME_VALUE"])), 
+                                                 end=as.numeric(as.character(annotationTimes[annotationTimes$TIME_SLOT_ID==annot$.attrs["TIME_SLOT_REF2"],"TIME_VALUE"])),
+                                                 annotation=annot$ANNOTATION_VALUE)
+                        experimental <- rbind(experimental,annotation)
+                    }
+                }
+                
+            }
+        
+            #Add tier field to all data frames, and put them together, and add the session field too
+            comments$tier = "Comments"
+            recording$tier = "Recording"
+            activity$tier = "Activity"
+            social$tier = "Social"
+            experimental$tier = "Experimental"
+            sessionAnnotations = rbind(comments,recording,activity,social,experimental)
+            sessionAnnotations$session = session
+            # Join all sessions in a single dataframe
+            if(nrow(annotationsData)==0) annotationsData = sessionAnnotations
+            else annotationsData = rbind(annotationsData,sessionAnnotations)
+        
+        }
+        
+        save(annotationsData, file = paste(rootdir,"/data/study4/cleanAnnotationData.Rda",sep=""))
+            
+        
+    }else{
+        annotationsData <- get(load(paste(rootdir,"/data/study4/cleanAnnotationData.Rda",sep="")))
+    }
+    # annotationsData now has the clean video coding data
+    
+    datadir <- paste(rootdir,"/data/study4",sep="")
+    
+    ####################################################################
+    # Preprocessing of the teacher tracker files (from JSON to a data frame with the beacon and accel x,y,z)
+    trackerData <- data.frame()
+    if(!file.exists(paste(rootdir,"/data/study4/cleanTrackerData.Rda",sep=""))){
+    
+            for (session in sessions){
+    
+                sessionTrackerData <- data.frame(accelerationX=numeric(),
+                      accelerationY=numeric(),
+                      accelerationZ=numeric(),
+                      timestamp=numeric(),
+                      beaconID=character(),
+                      proximity=numeric(),
+                      distance=numeric(),
+                      rssi=numeric())
+    
+                # We get the tracker files for this session
+                filenames <- dir(datadir)[grepl(session,dir(datadir))]
+                filenames <- filenames[grepl("-teacherTracker",filenames)]
+    
+                for(file in filenames){# For each file...
+                    
+                    lines <- paste(readLines(paste(datadir,"/",file,sep="")),collapse="")
+                    # Retouch it a bit so that it is proper json
+                    lines <- gsub("[]", "", lines, fixed=T)
+                    lines <- gsub("][", ",", lines, fixed=T)
+                    # We parse the json
+                    json_data <- fromJSON(lines)
+                    df <- ldply(json_data, data.frame)
+                    
+                    if(ncol(df)!=ncol(sessionTrackerData)){# If our resulting data frame does not have all columns, we add them (for the rbind to work)
+                        dummy <- data.frame(accelerationX=numeric(), accelerationY=numeric(), accelerationZ=numeric(),
+                                               timestamp=numeric(), beaconID=character(), proximity=numeric(), 
+                                               distance=numeric(), rssi=numeric())
+                        df <- merge(df,dummy,all = T)
+                    }
+                    
+                    sessionTrackerData <- rbind(sessionTrackerData,df)
+                    
+                }
+                
+                sessionTrackerData$session <- session
+                if(nrow(trackerData)==0) trackerData <- sessionTrackerData
+                else trackerData <- rbind(trackerData,sessionTrackerData)
+            }
+            
+            # We remove duplicate entries, there can still be entries with the same timestamp, but they will be either an accelerometer or a beacon entry
+            trackerData <- unique(trackerData)
+            
+            save(trackerData, file = paste(rootdir,"/data/study4/cleanTrackerData.Rda",sep=""))
+        
+    }else{
+        trackerData <- get(load(paste(rootdir,"/data/study4/cleanTrackerData.Rda",sep="")))
+    }
+    # trackerData now has the clean teacher tracker/accelerometer data
+    
+    
+    ################################################################
+    # Preprocessing of the EEG files: for now, only use theta band
+    # We get the start/end times of the EEG recording of each session 
+    # (manually, from the annotations files -- in seconds, as the EEG files times are in seconds since start of recording)
+    eegtimes <- data.frame(start=c(66.567,0,52.600,0),end=c(2371.767,2278.900,2155.200,1557.400),session=sessions)
+    eegdata <- data.frame()
+    if(!file.exists(paste(datadir,"/cleanEEGData.Rda",sep=""))){
+        for (session in sessions){
+            # We get the EEG file filename
+            filepattern <- paste(session,"-EEG",sep="")
+            filename <- dir(datadir)[grepl(filepattern,dir(datadir))]
+            eegsession <- read.csv2(file = paste(datadir,"/",filename,sep=""))
+            eegsession <- eegsession[,1:13]
+            eegsession$session <- session
+            #Time (s);Electrode;Attention;Meditation;Delta;Theta;Low Alpha;High Alpha;Low Beta;High Beta;Low Gamma;Mid Gamma;Blink Strength
+            eegsession$Time..s. <- as.numeric(as.character(eegsession$Time..s.))
+            eegsession$Electrode <- as.numeric(as.character(eegsession$Electrode))
+            eegsession$Attention <- as.numeric(as.character(eegsession$Attention))
+            eegsession$Meditation<- as.numeric(as.character(eegsession$Meditation))
+            eegsession$Delta<- as.numeric(as.character(eegsession$Delta))
+            eegsession$Theta<- as.numeric(as.character(eegsession$Theta))
+            eegsession$Low.Alpha<- as.numeric(as.character(eegsession$Low.Alpha))
+            eegsession$High.Alpha<- as.numeric(as.character(eegsession$High.Alpha))
+            eegsession$Low.Beta<- as.numeric(as.character(eegsession$Low.Beta))
+            eegsession$High.Beta<- as.numeric(as.character(eegsession$High.Beta))
+            eegsession$Low.Gamma<- as.numeric(as.character(eegsession$Low.Gamma))
+            eegsession$Mid.Gamma<- as.numeric(as.character(eegsession$Mid.Gamma))
+            eegsession$Blink.Strength<- as.numeric(as.character(eegsession$Blink.Strength))
+            if(nrow(eegdata)==0) eegdata <- eegsession
+            else eegdata <- rbind(eegdata,eegsession)
+        }
+        eegdata$session <- factor(eegdata$session)
+        save(eegdata,file = paste(datadir,"/cleanEEGData.Rda",sep=""),compress=TRUE)
+    } else {
+        eegdata <- get(load(paste(datadir,"/cleanEEGData.Rda",sep="")))
+    }
+    #eegdata now has the the clean EEG data
+    
+    ###########################################
+    # Merging and aggregation of the different data sources of load and video annotations in 10-second episode
+    # We get the time period of interest from the annotation file
+    initendtimes <- annotationsData[annotationsData$tier=="Recording" 
+                                    & annotationsData$annotation == "Recording", c("start","end","session")]
+    
+    # Aggregation of the eyetracking data
+    eyedata <- aggregateEpisodeData(sessions, datadir=paste(rootdir,"/data/study4",sep=""), initendtimes=initendtimes, SEPARATOR=";") # For this study the raw data is semicolon-separated, at least the fixation/saccades!
+    eyedata <- eyedata[,c(1:5,12)] # We select only the load-related metrics
+    
+    # We calculate the video coding values for the same windows
+    videocodedata <- aggregateVideoCodingData(sessions, datadir=paste(rootdir,"/data/study4",sep=""),
+                                              initendtimes=initendtimes)
+    
+    # Merge video codes and eyetracking        
+    totaldata <- merge(eyedata,videocodedata,by=c("time","session"),all=T)
+    totaldata <- totaldata[order(totaldata$session,totaldata$time),]
+    totaldata$value.Experimental <- factor(totaldata$value.Experimental)
+    totaldata$value.Social <- factor(totaldata$value.Social)
+    totaldata$value.Activity <- factor(totaldata$value.Activity)
+            
+    # We aggregate the EEG data in rolling window episodes (for now, only Theta and attention)
+    agEEGdata <- aggregateEEGData(eegdata, eegtimes)
+    
+    # We merge and align EEG with the previous eyetrack/videocode data
+    newtotaldata <- data.frame()
+    for(session in sessions){
+        sessiondata <- totaldata[totaldata$session==session,]
+        sessioneeg <- agEEGdata[agEEGdata$session==session,]
+        
+    
+        # We know the mistmatch between EEG and eyetrack data episodes comes from 
+        # the late EEG start in session 4, so we aggregate the EEG data accordingly
+        if(nrow(sessiondata)==nrow(sessioneeg)){
+            #Ensure that the episodes are aligned
+            sessiondata <- sessiondata[order(sessiondata$time),]
+            sessioneeg <- sessioneeg[order(sessioneeg$time),]
+            
+            sessiondata$value.Electrode <- sessioneeg$value.Electrode
+            sessiondata$value.Attention <- sessioneeg$value.Attention
+            sessiondata$value.Meditation <- sessioneeg$value.Meditation
+            sessiondata$value.Delta <- sessioneeg$value.Delta
+            sessiondata$value.Theta <- sessioneeg$value.Theta
+            sessiondata$value.Low.Alpha <- sessioneeg$value.Low.Alpha
+            sessiondata$value.High.Alpha <- sessioneeg$value.High.Alpha
+            sessiondata$value.Low.Beta <- sessioneeg$value.Low.Beta
+            sessiondata$value.High.Beta <- sessioneeg$value.High.Beta
+            sessiondata$value.Low.Gamma <- sessioneeg$value.Low.Gamma
+            sessiondata$value.Mid.Gamma <- sessioneeg$value.Mid.Gamma
+            sessiondata$value.Blink.Strength <- sessioneeg$value.Blink.Strength
+        }else{
+            num <- nrow(sessiondata)-nrow(sessioneeg)
+            sessiondata <- sessiondata[order(sessiondata$time),]
+            sessioneeg <- sessioneeg[order(sessioneeg$time),]
+            sessiondata$value.Electrode <- c(rep(NA,num),sessioneeg$value.Electrode)
+            sessiondata$value.Attention <- c(rep(NA,num),sessioneeg$value.Attention)
+            sessiondata$value.Meditation <- c(rep(NA,num),sessioneeg$value.Meditation)
+            sessiondata$value.Delta <- c(rep(NA,num),sessioneeg$value.Delta)
+            sessiondata$value.Theta <- c(rep(NA,num),sessioneeg$value.Theta)
+            sessiondata$value.Low.Alpha <- c(rep(NA,num),sessioneeg$value.Low.Alpha)
+            sessiondata$value.High.Alpha <- c(rep(NA,num),sessioneeg$value.High.Alpha)
+            sessiondata$value.Low.Beta <- c(rep(NA,num),sessioneeg$value.Low.Beta)
+            sessiondata$value.High.Beta <- c(rep(NA,num),sessioneeg$value.High.Beta)
+            sessiondata$value.Low.Gamma <- c(rep(NA,num),sessioneeg$value.Low.Gamma)
+            sessiondata$value.Mid.Gamma <- c(rep(NA,num),sessioneeg$value.Mid.Gamma)
+            sessiondata$value.Blink.Strength <- c(rep(NA,num),sessioneeg$value.Blink.Strength)
+            
+        }
+        
+        if(nrow(newtotaldata)==0) newtotaldata <- sessiondata
+        else newtotaldata <- rbind(newtotaldata,sessiondata)
+    }
+    
+    totaldata <- newtotaldata
+        
+    # Aggregation of the accelerometer data for the episodes (for now, only average and SD for each component)
+    # We get the start/end times of the accelerometer recording of each session 
+    # (manually, from the annotations files -- in milliseconds)
+    newtotaldata <- data.frame()
+    accdata <- trackerData[complete.cases(trackerData$accelerationX),]
+    accdata <- accdata[order(accdata$timestamp),]
+    acctimes <- data.frame(start=c(0,3300,0,0),end=c(2305200,2282200,2102600,1901500),session=sessions)
+    agAccdata <- aggregateAccelerometerDataWithJerk(accdata, acctimes)
+    agAccdata <- agAccdata[order(agAccdata$time),] # We will ignore these timestamps, as we will aggregate them to the master table that uses the eyetracking ones
+    for(session in sessions){
+        sessiondata <- totaldata[totaldata$session == session,]
+        sessiondata <- sessiondata[order(sessiondata$time),]
+        
+        sessiondata$value.X.Mean <- agAccdata[agAccdata$session == session , "value.X.Mean"]
+        sessiondata$value.X.SD <- agAccdata[agAccdata$session == session , "value.X.SD"]
+        sessiondata$value.Y.Mean <- agAccdata[agAccdata$session == session , "value.Y.Mean"]
+        sessiondata$value.Y.SD <- agAccdata[agAccdata$session == session , "value.Y.SD"]
+        sessiondata$value.Z.Mean <- agAccdata[agAccdata$session == session , "value.Z.Mean"]
+        sessiondata$value.Z.SD <- agAccdata[agAccdata$session == session , "value.Z.SD"]
+        sessiondata$value.Jerk.Mean <- agAccdata[agAccdata$session == session , "value.Jerk.Mean"]
+        sessiondata$value.Jerk.SD <- agAccdata[agAccdata$session == session , "value.Jerk.SD"]
+    
+        if(nrow(newtotaldata)==0) newtotaldata <- sessiondata
+        else newtotaldata <- rbind(newtotaldata,sessiondata)
+    }
+    totaldata <- newtotaldata
+    
+    save(totaldata, file=cleandatafile)
+
+}else{
+    totaldata <- get(load(cleandatafile))
+}
+
 
 ```
 
@@ -468,6 +479,24 @@ To explore the temporal structure of these load-related sensor signals, we train
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 library(depmixS4)
+
+
+# We plot the BIC for different number of states, just to check
+states <- 2:16
+BICs <- 39000
+for(i in states){
+#    print(paste(numstates,"..."))
+    # Overall
+    set.seed(1)
+    #set up the HMM model
+    mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1,value.Jerk.Mean~1,value.Jerk.SD~1,value.Theta~1,value.Attention~1), data=loaddata, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson(),gaussian(),gaussian(),gaussian(),gaussian()),ntimes=summary(as.factor(loaddata$session)), verbose=F)
+    #fit the model 
+    f <- fit(mod, verbose=F)
+#    print(f)
+    BICs[i] <- BIC(f)
+}
+qplot(1:16,BICs,geom="line")
+
 
 numstates <- 4
 

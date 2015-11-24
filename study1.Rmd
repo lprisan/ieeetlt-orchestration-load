@@ -125,10 +125,29 @@ loaddata$EyeMoveFixLoadDim = res.pca$ind$coord[,2]
 
 We can see all the sessions have pretty similar dimensions, with one dimension taking the pupil diameter-related values, and the other one taking the fixations vs. saccades (in opposing directions, maybe indicating two different ways in which a teacher can be "loaded").
 
+
 To explore the temporal structure of these load-related sensor signals, we train a Hidden Markov Model with 4 states using the load-related signals as observables:
 
 ```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 library(depmixS4)
+
+# We plot the BIC for different number of states, just to check
+states <- 2:16
+BICs <- 0
+for(i in states){
+#    print(paste(numstates,"..."))
+    # Overall
+    set.seed(1)
+    #set up the HMM model
+    mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1), data=loaddata, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson()),ntimes=summary(as.factor(loaddata$session)), verbose=F)
+    #fit the model 
+    f <- fit(mod, verbose=F)
+#    print(f)
+    BICs[i] <- BIC(f)
+}
+qplot(1:16,BICs,geom="line")
+
+
 
 # We remove the missing data, as the HMM library does not like them, apparently
 # Not needed, we have no missing data in that sense

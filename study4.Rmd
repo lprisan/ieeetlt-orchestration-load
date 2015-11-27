@@ -377,7 +377,7 @@ if(!file.exists(paste(rootdir,"/data/study4/",cleandatafile,sep=""))){
 
 We first calculate the _coarse load index_ (how many measures are over the median) and the _fine load index_ (average of percentiles of the different load metrics), and we plot them for each session
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 setwd(paste(rootdir,"/data/study4",sep=""))
 totaldata <- get(load(cleandatafile))[,c(1:9,11,14,28,29)] # We load the data, getting only the load-related and coding columns
 
@@ -414,7 +414,7 @@ for(session in sessions){
 
 We can also see whether there is any difference in the overall load regarding the **load manipulation** done (with helper (C1, session 1 and 4), and without help (C2, session 2 and 3)):
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 expdata <- loaddata[loaddata$value.Experimental=="C1" | loaddata$value.Experimental=="C2", ]
 expdata$value.Experimental<- factor(expdata$value.Experimental)
 g1 <- ggplot(data = expdata, mapping = aes(value.Experimental,FineLoad))+geom_boxplot(aes(fill=value.Experimental))+geom_jitter()
@@ -429,9 +429,19 @@ We see that, at the level of overall orchestration load (fine or coarse), **we c
 
 ### B: Exploring the structure of the sensor (episode) load data 
 
-First we do a Principal Component analysis to see what dimensions are there within these 4 load-related signals:
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+First, we see how the different metrics correlate among themselves:
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+library(corrplot)
+M <- cor(loaddata[, c(3:6,10,11,12,13)])
+corrplot.mixed(M)
+```
+
+We do a Principal Component analysis to see what dimensions are there within these 4 load-related signals:
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 library(FactoMineR)
 
@@ -458,7 +468,7 @@ Interestingly, by looking at the first 4 dimensions of the variance in the data 
 
 We can also see whether there is any difference in the overall load regarding the **load manipulation** done (with helper (C1, session 1 and 4), and without help (C2, session 2 and 3)):
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 # We plot the experimental varieties across the four load dimensions
 exp.res.pca = PCA(loaddata[, c(3:6,10,11,12,13,7)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=9)
 plot.PCA(exp.res.pca, axes=c(1, 2), choix="ind", habillage=9, invisible="ind")
@@ -477,7 +487,7 @@ It is also interesting how the common parts of the lesson, where the helper was 
 
 To explore the temporal structure of these load-related sensor signals, we train a Hidden Markov Model, with 4 states using the load-related signals as observables:
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 library(depmixS4)
 
 
@@ -541,7 +551,7 @@ However, the states do not do much separation in terms of the other two load dim
 * State 3: mid-high load, high cognitive load
 * State 4: mid-low load, low cognitive load
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 expdata <- loaddata[loaddata$value.Experimental=="C1" | loaddata$value.Experimental=="C2", ]
 expdata$value.Experimental<- factor(expdata$value.Experimental)
 exptab <- xtabs(~expdata$MMstate4+expdata$value.Experimental)
@@ -552,7 +562,7 @@ Looking at this 4-state model with respect to the **load manipulation** done dur
 
 
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 numstates <- 8
 
 # Overall
@@ -608,7 +618,7 @@ Looking at the different dimensions of orchestration load, we see that again the
 * State 8: low load, with higher attention and saccade speeds
 
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 expdata <- loaddata[loaddata$value.Experimental=="C1" | loaddata$value.Experimental=="C2", ]
 expdata$value.Experimental<- factor(expdata$value.Experimental)
 exptab <- xtabs(~expdata$MMstate8+expdata$value.Experimental)
@@ -632,7 +642,7 @@ In the preprocessing, we have aggregated the code counts for each of these dimen
 #### Activity dimension
 
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 # Overall behavioral analyses
 # ACTIVITY
 behdata <- loaddata[(!is.na(loaddata$value.Activity)),]
@@ -670,7 +680,7 @@ However, looking into the PCA load dimensions, we see more clearly the separatio
 Looking at the HMM (8-state) model, we find that certain activities are clearly represented in some states: TDT tends to be MidLoadState or MidHiCogLowPhysLoadState; EXP seems to be in the high-cognitive load states like MidLowPhysHiCogLoadState, MidHiCogLowPhysLoadState; so is QUE (MidLowPhysHiCogLoadState, HiCognitiveLoadState); MON is more mid-range (MidHiPhysicalLowCogLoadState, MidLoadState), while REP is clearly in the low-load states (MidLowPhysCogLoadState, LowLoadState).
 
 **Comparison of Activity between sessions with and without helper**: 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 
 expdata$value.Experimental <- factor(expdata$value.Experimental)
 expdata$value.Activity <- factor(expdata$value.Activity)
@@ -688,7 +698,7 @@ Interestingly, there _is_ a certain difference in what the teacher did (basicall
 
 #### Social dimension
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 # Overall behavioral analyses
 # SOCIAL
 behdata <- loaddata[(!is.na(loaddata$value.Social)),]
@@ -726,7 +736,7 @@ However, looking into the PCA load dimensions, we see clearly the separation amo
 Looking at the HMM (8-state) model, we find similar trends: CLS centers around the high-cognitive, low physical load states (HiCognitiveLoadState, MidLowPhysHiCogLoadState, MidLoadState, MidHiCogLowPhysLoadState), while the GRP plane is more in the low-cognitive load -- including both higher and lower physical load (MidHiPhysicalLowCogLoadState, MidLowPhysCogLoadState, LowLoadState)
 
 **Comparison of Social between sessions with and without helper**: 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 
 expdata$value.Experimental <- factor(expdata$value.Experimental)
 expdata$value.Social <- factor(expdata$value.Social)
@@ -745,12 +755,30 @@ Interestingly, there _is_ a certain difference in who the teacher was interactin
 
 Not analyzed in this study
 
+
+#### Composite dimensions
+
+Similar conclusions can be reached by using a **composite variable of Activity/Social and Activity/Social/Focus**
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+data <- loaddata[complete.cases(loaddata[,c("value.Activity","value.Social")]),]
+
+data$ActSocial <- factor(paste0(data$value.Activity,data$value.Social))
+actsocTab <- xtabs(~ActSocial+CoarseLoad, data=data)
+chisq.test(actsocTab)
+actsocTab
+chisq.test(actsocTab)$residuals
+
+
+```
+
+
 ### E: Session-level analysis and comparison
 
 
 Since we had no subjective ratings (for the session or for individual episodes) for cognitive load, all we can do is compare the quantitative, sensor-based load values for each session, to get an idea of which session could have been more or less "loading"
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 # Plotting the FineLoad of each session
 g1 <- ggplot(loaddata,aes(session,FineLoad)) + geom_boxplot(aes(fill=session))
 print(g1)
@@ -785,9 +813,25 @@ The PCA dimensions help us see that differences are quite small, especially in t
 The analysis from the point of view of the HMM states is also interesting, as there are some differences (without reaching a level of session-specific states): session 1 was richer in MidLoadState episodes, while session 1; session 2 had more HiPhysicalFixLoadState episodes; session 3 was more "average" in terms of states, while session 4 had more HiCognitiveLoadState and MidLowPhysCogLoadState.
 
 
+Something else we can try to see is whether the proportions of different video codes vary a lot from session to session:
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+
+sessActTab <- xtabs(~session+value.Activity, data=loaddata)
+chisq.test(sessActTab)
+sessActTab
+chisq.test(sessActTab)$residuals
+
+sessSocTab <- xtabs(~session+value.Social, data=loaddata)
+chisq.test(sessSocTab)
+sessSocTab
+chisq.test(sessSocTab)$residuals
 
 
-```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+```
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 # We come to the root folder, for the next study
 setwd(rootdir)
 ```

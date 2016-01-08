@@ -1292,7 +1292,7 @@ chisq.test(sessFocTab)$residuals
 
 We plot many of the overall results side by side:
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Summarizing function
 ## Gives count, mean, standard deviation, standard error of the mean, and confidence interval (default 95%).
 ##   data: a data frame.
@@ -1343,18 +1343,36 @@ loaddata2$sessionkind <- ifelse((loaddata2$Session==sessions[1] | loaddata2$Sess
 
 levels(sessiondata$Session) <- c("Session1","Session2","Session3","Session4")
 levels(loaddata$session) <- c("Session1","Session2","Session3","Session4")
-levels(loaddata2$Session) <- c("Session1","Session2","Session3","Session4")
 
+loaddata2$Session <- as.factor(loaddata2$Session)
+loaddata2$session <- as.factor(loaddata2$session)
+levels(loaddata2$Session) <- c("Session1","Session2","Session3","Session4")
+levels(loaddata2$session) <- c("Session1","Session2","Session3","Session4")
+
+print(str(loaddata2))
 
 #qplot(sessiondata$Session,sessiondata$TLX.Total,fill=sessiondata$SessionType)+geom_bar(stat = "identity")
 agTLX <- aggregate(TLX.Total~Session+sessionkind, data=sessiondata, mean)
 agTLX
 
+ggplot(agTLX, aes(x=Session, y=TLX.Total, fill=sessionkind)) + 
+     geom_bar(position=position_dodge(), stat="identity") +
+     ggtitle("Overall subjective workload (NASA TLX)")
+
 agMental <- aggregate(Subj.Mental.Effort~Session+sessionkind, data=sessiondata, mean)
 agMental
 
+ggplot(agMental, aes(x=Session, y=Subj.Mental.Effort, fill=sessionkind)) + 
+     geom_bar(position=position_dodge(), stat="identity") +
+     ggtitle("Overall subjective estimation of mental effort")
+
+
 agDifficulty <- aggregate(Subj.Difficulty~Session+sessionkind, data=sessiondata, mean)
 agDifficulty
+
+ggplot(agDifficulty, aes(x=Session, y=Subj.Difficulty, fill=sessionkind)) + 
+     geom_bar(position=position_dodge(), stat="identity") +
+     ggtitle("Overall subjective estimation of session difficulty")
 
 #names(loaddata)
 agFineLoad <- aggregate(FineLoad~session, data=loaddata, mean)
@@ -1380,7 +1398,7 @@ ggplot(sumOther, aes(x=Session, y=Load, fill=sessionkind)) +
      geom_errorbar(aes(ymin=Load-ci, ymax=Load+ci),
                    width=.2,                    # Width of the error bars
                    position=position_dodge(.9)) + 
-     ggtitle("Coarse load index, normalized against session 1 (eyetracking)")
+     ggtitle("Coarse load index, norm. agnst session 1 (eyetrack)")
 
 
 agSacVar <- aggregate(SacVarLoadDim~session, data=loaddata, mean)

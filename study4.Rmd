@@ -470,7 +470,11 @@ We can also see whether there is any difference in the overall load regarding th
 
 ```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 # We plot the experimental varieties across the four load dimensions
-exp.res.pca = PCA(loaddata[, c(3:6,10,11,12,13,7)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=9)
+
+loaddata$Condition <- as.factor(loaddata$value.Experimental)
+levels(loaddata$Condition) <- c("Common", "With help", "Without help")
+print(str(loaddata))
+exp.res.pca = PCA(loaddata[, c(3:6,10,11,12,13,44)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=9)
 plot.PCA(exp.res.pca, axes=c(1, 2), choix="ind", habillage=9, invisible="ind")
 plot.PCA(exp.res.pca, axes=c(3, 4), choix="ind", habillage=9, invisible="ind")
 
@@ -656,10 +660,19 @@ chisq.test(tabAct)$residuals
 # Plotting against the FineLoad confirms the trends of CoarseLoad (even with its tendency towards the mean)
 g1 <- ggplot(loaddata[!is.na(loaddata$value.Activity),],aes(value.Activity,FineLoad)) + geom_boxplot(aes(fill=value.Activity)) + geom_jitter(aes(col=session))
 print(g1)
+
+cleandata <- loaddata[!is.na(loaddata$value.Activity) & loaddata$value.Activity!="OFF" & loaddata$value.Activity!="TEC",]
+g2 <- ggplot(cleandata,aes(value.Activity,FineLoad)) + geom_boxplot(aes(fill=value.Activity))
+print(g2)
+
+aggregate(CoarseLoad~value.Activity,data=cleandata,mean)
+aggregate(FineLoad~value.Activity,data=cleandata,mean)
+
 # Another way of seeing this, in the PCA diagram
 act.res.pca = PCA(loaddata[, c(3:6,10:13, 9)], scale.unit=TRUE, ncp=5, graph=F, quali.sup=9)
 plot.PCA(act.res.pca, axes=c(1, 2), choix="ind", habillage=9, invisible="ind")
 plot.PCA(act.res.pca, axes=c(3, 4), choix="ind", habillage=9, invisible="ind")
+
 
 # Comparison against the HMM states of load -- The states are different for each session, almost!
 # hmmActTab <- xtabs(~value.Activity+MMstate4, data=behdata)
@@ -670,6 +683,7 @@ hmmActTab <- xtabs(~value.Activity+MMstate8, data=behdata)
 chisq.test(hmmActTab)
 hmmActTab
 chisq.test(hmmActTab)$residuals
+
 
 ```
 
@@ -687,6 +701,7 @@ expdata$value.Activity <- factor(expdata$value.Activity)
 exptab <- xtabs(~value.Activity+value.Experimental,data = expdata)
 exptab
 chisq.test(exptab)
+chisq.test(exptab)$residuals
 ```
 
 Interestingly, there _is_ a certain difference in what the teacher did (basically, there was more time in REPairs in the sessions without helper (but that can be very well linked to the amount of help needed by different cohorts of students -- or that MONitoring only lasts until somebody needs help, which is more common the more groups a teacher has to manage)
@@ -779,11 +794,107 @@ chisq.test(actsocTab)$residuals
 Since we had no subjective ratings (for the session or for individual episodes) for cognitive load, all we can do is compare the quantitative, sensor-based load values for each session, to get an idea of which session could have been more or less "loading"
 
 ```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+# Summarizing function
+## Gives count, mean, standard deviation, standard error of the mean, and confidence interval (default 95%).
+##   data: a data frame.
+##   measurevar: the name of a column that contains the variable to be summariezed
+##   groupvars: a vector containing names of columns that contain grouping variables
+##   na.rm: a boolean that indicates whether to ignore NA's
+##   conf.interval: the percent range of the confidence interval (default is 95%)
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+    library(plyr)
+
+    # New version of length which can handle NA's: if na.rm==T, don't count them
+    length2 <- function (x, na.rm=FALSE) {
+        if (na.rm) sum(!is.na(x))
+        else       length(x)
+    }
+
+    # This does the summary. For each group's data frame, return a vector with
+    # N, mean, and sd
+    datac <- ddply(data, groupvars, .drop=.drop,
+      .fun = function(xx, col) {
+        c(N    = length2(xx[[col]], na.rm=na.rm),
+          mean = mean   (xx[[col]], na.rm=na.rm),
+          sd   = sd     (xx[[col]], na.rm=na.rm)
+        )
+      },
+      measurevar
+    )
+
+    # Rename the "mean" column    
+    datac <- rename(datac, c("mean" = measurevar))
+
+    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+
+    # Confidence interval multiplier for standard error
+    # Calculate t-statistic for confidence interval: 
+    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+    datac$ci <- datac$se * ciMult
+
+    return(datac)
+}
+
+loaddata$sessionkind <- ifelse((loaddata$session==sessions[1] | loaddata$session==sessions[4]), "With help", "Without help")
+loaddata$session <- as.factor(loaddata$session)
+levels(loaddata$session) <- c("Session 1 (h)","Session 2 (noh)","Session 3 (noh)","Session 4 (h)")
+
 # Plotting the FineLoad of each session
 g1 <- ggplot(loaddata,aes(session,FineLoad)) + geom_boxplot(aes(fill=session))
 print(g1)
 g1 <- ggplot(loaddata,aes(FineLoad)) + geom_density(aes(col=session))
 print(g1)
+
+# The coarse load distributions are not independent, but not clearly interpretable
+# tabCoarseLoad <- xtabs(~CoarseLoad+session, data=loaddata)
+# tabCoarseLoad
+# chisq.test(tabCoarseLoad)
+# chisq.test(tabCoarseLoad)$residuals
+# 
+# tabCoarseLoad2 <- xtabs(~CoarseLoad+sessionkind, data=loaddata)
+# tabCoarseLoad2
+# chisq.test(tabCoarseLoad2)
+# chisq.test(tabCoarseLoad2)$residuals
+
+
+agFineLoad <- aggregate(FineLoad~session, data=loaddata, mean)
+agFineLoad
+
+sumFine <- summarySE(loaddata, measurevar="FineLoad", groupvars=c("session","sessionkind"))
+sumFine
+ggplot(sumFine, aes(x=session, y=FineLoad, fill=sessionkind)) + 
+     geom_bar(position=position_dodge(), stat="identity") +
+     geom_errorbar(aes(ymin=FineLoad-ci, ymax=FineLoad+ci),
+                   width=.2,                    # Width of the error bars
+                   position=position_dodge(.9)) + 
+     ggtitle("Fine load index (eyetracking)")
+
+# TODO: revise this piece of code, not working!
+# Calculating Load index with the reference of the first session
+#loaddata2 <- calculateLoadIndexOtherSessionNormalized8vars(totaldata, refsession="JDC2015-Session1")
+#summary(loaddata2)
+# aggregate(Load~session,data=loaddata2,mean)
+# loadtabSelf2 <- table(loaddata2$Load, loaddata2$session)
+# countsDataSelf2 <- melt(loadtabSelf2, varnames=c("Load","session"))
+# countsDataSelf2$num.Episodes <- numeric(nrow(countsDataSelf2))
+# for(session in sessions){
+#      countsDataSelf2[countsDataSelf2$session == session,"num.Episodes"] <- sum(countsDataSelf2[countsDataSelf2$session == session , "value"])
+# }
+# # We draw the plot of count proportions for the load index
+# ggplot(countsDataSelf2,aes(x=Load,y=value/num.Episodes,fill=session))+
+#     geom_bar(stat="identity",position="dodge")+
+#     theme(axis.text=element_text(size=15),
+#         axis.title=element_text(size=15),
+#         legend.text=element_text(size=15),
+#         legend.title=element_text(size=15))+
+#     xlab("Load indices calculated using (normalized)\nmedians for session 2 in both sessions")+
+#     ylab("Proportions of the load indices")
+# # We check whether the two session distributions are significantly different
+# chisq.test(loadtabSelf2)
+
+nrow(loaddata)
 
 # Plotting against the PCA and HMM dimensions
 # g1 <- ggplot(loaddata,aes(PupilLoadDim)) + geom_density(aes(col=session))

@@ -176,3 +176,67 @@ calculateLoadIndexOtherSessionNormalized <- function(data, refsession, meanlabel
     normdata
 }
 
+# This function gets a data frame with eye metrics for 10s windows
+# in a session, normalizes each session data with that of the first episode
+# in the session, and calculates the Load Index for each window in that session,
+# using the median, not of that session, but of a "session of reference".
+# Returns the same dataset with added columns
+# Since in some cases the field labels may vary, they can also be specified explicitly
+calculateLoadIndexOtherSessionNormalized8vars <- function(data, refsession, meanlabel="value.Mean", sdlabel="value.SD", fixlabel="value.Fix", saclabel="value.Sac", attlabel="value.Attention", thetalabel="value.Theta", jerkmeanlabel="value.Jerk.Mean", jerksdlabel="value.Jerk.SD"){
+    
+    # We normalize the data for each session with that of the first episode
+    normdata <- data.frame()
+    sessions <- levels(data$session)
+    for(session in sessions){
+        
+        sessdata <- data[data$session == session,]
+        
+        normsessdata <- sessdata
+        normsessdata[,meanlabel] <- sessdata[,meanlabel]/sessdata[1,meanlabel]
+        normsessdata[,sdlabel] <- sessdata[,sdlabel]/sessdata[1,sdlabel]
+        
+        if(sessdata[1,fixlabel]!=0) normsessdata[,fixlabel] <- sessdata[,fixlabel]/sessdata[1,fixlabel]
+        else normsessdata[,fixlabel] <- sessdata[,fixlabel] # If it is the rare case of the median being a zero count
+
+        normsessdata[,saclabel] <- sessdata[,saclabel]/sessdata[1,saclabel]
+
+        normsessdata[,attlabel] <- sessdata[,attlabel]/sessdata[1,attlabel]
+        normsessdata[,thetalabel] <- sessdata[,thetalabel]/sessdata[1,thetalabel]
+        normsessdata[,jerkmeanlabel] <- sessdata[,jerkmeanlabel]/sessdata[1,jerkmeanlabel]
+        normsessdata[,jerksdlabel] <- sessdata[,jerksdlabel]/sessdata[1,jerksdlabel]
+        
+        # We join the new data into a dataset with all sessions normalized data
+        if(length(normdata)==0) normdata <- normsessdata
+        else normdata <- rbind(normdata,normsessdata)
+    }  
+    
+    # We calculate the session of reference's (normalized) medians
+    refdata <- normdata[normdata$session == refsession,]
+    meansessionmed <- median(refdata[,meanlabel], na.rm=T)
+    sdsessionmed <- median(refdata[,sdlabel], na.rm=T)
+    longsessionmed <- median(refdata[,fixlabel], na.rm=T)
+    sacsessionmed <- median(refdata[,saclabel], na.rm=T)
+
+    attsessionmed <- median(refdata[,attlabel], na.rm=T)
+    thetasessionmed <- median(refdata[,thetalabel], na.rm=T)
+    jerkmeansessionmed <- median(refdata[,jerkmeanlabel], na.rm=T)
+    jerksdsessionmed <- median(refdata[,jerksdlabel], na.rm=T)
+    
+    
+    # We calculate the load indices using the reference medians
+    normdata$Above.Mean <- as.numeric(normdata[,meanlabel] > meansessionmed)
+    normdata$Above.SD <- as.numeric(normdata[,sdlabel] > sdsessionmed)
+    normdata$Above.Fix <- as.numeric(normdata[,fixlabel] > longsessionmed)
+    normdata$Above.Sac <- as.numeric(normdata[,saclabel] > sacsessionmed)
+
+    normdata$Above.Att <- as.numeric(normdata[,attlabel] > attsessionmed)
+    normdata$Below.Theta <- as.numeric(normdata[,thetalabel] < thetasessionmed)
+    normdata$Above.Jerkmean <- as.numeric(normdata[,jerkmeanlabel] > jerkmeansessionmed)
+    normdata$Above.Jerksd <- as.numeric(normdata[,jerksdlabel] > jerksdsessionmed)
+    # We calculate the Load Index simply summing the different median cuts
+    normdata$Load <- normdata$Above.Mean + normdata$Above.SD + normdata$Above.Fix + normdata$Above.Sac + 
+        normdata$Above.Att + normdata$Below.Theta + normdata$Above.Jerkmean + normdata$Above.Jerksd
+    
+    normdata
+}
+

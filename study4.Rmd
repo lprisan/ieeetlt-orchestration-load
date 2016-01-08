@@ -373,6 +373,9 @@ if(!file.exists(paste(rootdir,"/data/study4/",cleandatafile,sep=""))){
 
 ```
 
+
+
+
 ### A: From samples to episodes
 
 We first calculate the _coarse load index_ (how many measures are over the median) and the _fine load index_ (average of percentiles of the different load metrics), and we plot them for each session
@@ -425,6 +428,21 @@ chisq.test(exptab)
 ```
 
 We see that, at the level of overall orchestration load (fine or coarse), **we cannot distinguish** the equivalent parts of the lesson that had a helper from those that did not.
+
+#### A': Comparing coarse and fine load
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+
+
+#boxplot(FineLoad~CoarseLoad,data=loaddata)
+ggplot(loaddata, aes(x=as.factor(CoarseLoad),y=FineLoad))+geom_boxplot()
+ggplot(loaddata[loaddata$CoarseLoad==0 | loaddata$CoarseLoad==4,], aes(x=FineLoad))+geom_histogram()
+
+summary(loaddata[loaddata$CoarseLoad==0,"FineLoad"])
+summary(loaddata[loaddata$CoarseLoad==max(loaddata$CoarseLoad),"FineLoad"])
+
+```
+
 
 
 ### B: Exploring the structure of the sensor (episode) load data 
@@ -643,6 +661,133 @@ In this case, to see how valid our "extreme load sampling" coding was, we manual
 
 In the preprocessing, we have aggregated the code counts for each of these dimensions, to bridge from the episode-level analysis to have an idea of what kind of episodes are often high or low (coarse/fine) load. Also, comparisons with fine load, and the PCA and HMM dimensions of load data are made.
 
+
+
+#### Prelude: Individual metrics and behavioral episodes
+
+How do individual load metrics behave with respect to the coded episodes (activity, social, experimental condition)
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+library(gplots)
+# Activity
+# ggplot(loaddata,aes(x=value.Mean, col=factor(value.Activity)))+geom_density()
+# ggplot(loaddata,aes(x=value.SD, col=factor(value.Activity)))+geom_density()
+# ggplot(loaddata,aes(x=value.Sac, col=factor(value.Activity)))+geom_density()
+# ggplot(loaddata,aes(x=value.Fix, col=factor(value.Activity)))+geom_density()
+# ggplot(loaddata,aes(x=value.Theta, col=factor(value.Activity)))+geom_density()
+# ggplot(loaddata,aes(x=value.Attention, col=factor(value.Activity)))+geom_density()
+# ggplot(loaddata,aes(x=value.Jerk.Mean, col=factor(value.Activity)))+geom_density()
+plotmeans(value.Mean~value.Activity,data=loaddata)
+plotmeans(value.SD~value.Activity,data=loaddata)
+plotmeans(value.Sac~value.Activity,data=loaddata)
+plotmeans(value.Fix~value.Activity,data=loaddata)
+plotmeans(value.Theta~value.Activity,data=loaddata)
+plotmeans(value.Attention~value.Activity,data=loaddata)
+plotmeans(value.Jerk.Mean~value.Activity,data=loaddata)
+
+#Social
+plotmeans(value.Mean~value.Social,data=loaddata)
+plotmeans(value.SD~value.Social,data=loaddata)
+plotmeans(value.Sac~value.Social,data=loaddata)
+plotmeans(value.Fix~value.Social,data=loaddata)
+plotmeans(value.Theta~value.Social,data=loaddata)
+plotmeans(value.Attention~value.Social,data=loaddata)
+plotmeans(value.Jerk.Mean~value.Social,data=loaddata)
+
+#Experimental
+plotmeans(value.Mean~value.Experimental,data=loaddata)
+plotmeans(value.SD~value.Experimental,data=loaddata)
+plotmeans(value.Sac~value.Experimental,data=loaddata)
+plotmeans(value.Fix~value.Experimental,data=loaddata)
+plotmeans(value.Theta~value.Experimental,data=loaddata)
+plotmeans(value.Attention~value.Experimental,data=loaddata)
+plotmeans(value.Jerk.Mean~value.Experimental,data=loaddata)
+
+dat <- loaddata[loaddata$value.Experimental=="C1"|loaddata$value.Experimental=="C2",]
+
+with(loaddata, t.test(value.Mean[value.Experimental=="C1"],value.Mean[value.Experimental=="C2"]))
+with(loaddata, t.test(value.SD[value.Experimental=="C1"],value.SD[value.Experimental=="C2"]))
+with(loaddata, t.test(value.Sac[value.Experimental=="C1"],value.Sac[value.Experimental=="C2"]))
+with(loaddata, t.test(value.Fix[value.Experimental=="C1"],value.Fix[value.Experimental=="C2"]))
+with(loaddata, t.test(value.Theta[value.Experimental=="C1"],value.Theta[value.Experimental=="C2"]))
+with(loaddata, t.test(value.Attention[value.Experimental=="C1"],value.Attention[value.Experimental=="C2"]))
+with(loaddata, t.test(value.Jerk.Mean[value.Experimental=="C1"],value.Jerk.Mean[value.Experimental=="C2"]))
+
+```
+
+Interestingly, the pupil mean predicts experimental condition pretty well, and also the saccades (but that might be the physical effect of looking wider in the sessions without help), fixations goes the opposite way... and the EEG gives us actually opposite results to what the manipulation predicted (C1 -with help- is lower theta, i.e. higher load)!
+
+
+#### Prelude: Behavioral patterns of extreme coding (vs. the whole coding analysis below)
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+
+# We get an alternative coarse load index using only eyetracking
+loaddata2 <- calculateCoarseFineLoadIndex(totaldata,c(3:6),normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+
+# ACtivity
+behdata <- loaddata2[((loaddata2$CoarseLoad==0 | loaddata2$CoarseLoad==4) & !is.na(loaddata2$value.Activity)),]
+behdata$value.Activity <- factor(behdata$value.Activity)
+# chi-squared test and counts/residuals table for teacher activity
+tabAct <- table(behdata$CoarseLoad,behdata$value.Activity)
+chisq.test(tabAct)
+tabAct
+chisq.test(tabAct)$residuals
+
+# Social level
+behdata <- loaddata2[((loaddata2$CoarseLoad==0 | loaddata2$CoarseLoad==4) & !is.na(loaddata2$value.Social)),]
+behdata$value.Social <- factor(behdata$value.Social)
+# chi-squared test and counts/residuals table for teacher activity
+tabSoc <- table(behdata$CoarseLoad,behdata$value.Social)
+chisq.test(tabSoc)
+tabSoc
+chisq.test(tabSoc)$residuals
+
+```
+
+The results we get from the extreme load analysis:
+
+* Both Activity and Social are significantly related to extreme load episodes
+* TDT, EXP, QUE were high load, REP was low load (MON less noticeably)
+* CLS is high load, GRP is low load
+
+If we do the same with the top/bottom 20% of the range of the Fine load...?
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+threshtop <- min(loaddata2$FineLoad)+(0.8*diff(range(loaddata2$FineLoad)))
+threshbottom <- min(loaddata2$FineLoad)+(0.2*diff(range(loaddata2$FineLoad)))
+loaddata2$TopBottomFine <- ifelse(loaddata2$FineLoad>=threshtop,"Top",NA)
+loaddata2$TopBottomFine[is.na(loaddata2$TopBottomFine)] <- ifelse(is.na(loaddata2$TopBottomFine[is.na(loaddata2$TopBottomFine)])&loaddata2$FineLoad[is.na(loaddata2$TopBottomFine)]<=threshbottom,"Bottom",NA)
+loaddata2$TopBottomFine <- factor(loaddata2$TopBottomFine)
+summary(loaddata2$TopBottomFine)
+
+
+# ACtivity
+behdata <- loaddata2[((loaddata2$TopBottomFine=="Top" | loaddata2$TopBottomFine=="Bottom") & !is.na(loaddata2$value.Activity)),]
+behdata$value.Activity <- factor(behdata$value.Activity)
+# chi-squared test and counts/residuals table for teacher activity
+tabAct <- table(behdata$TopBottomFine,behdata$value.Activity)
+chisq.test(tabAct)
+tabAct
+chisq.test(tabAct)$residuals
+
+# Social level
+behdata <- loaddata2[((loaddata2$TopBottomFine=="Top" | loaddata2$TopBottomFine=="Bottom") & !is.na(loaddata2$value.Social)),]
+behdata$value.Social <- factor(behdata$value.Social)
+# chi-squared test and counts/residuals table for teacher activity
+tabSoc <- table(behdata$TopBottomFine,behdata$value.Social)
+chisq.test(tabSoc)
+tabSoc
+chisq.test(tabSoc)$residuals
+
+```
+
+The results are exactly the same -- we can use both indexes to get the extreme loads interchangeably, probably
+
+
+**The extreme load episodes produce MORE patterns than the whole-session costly coding (they say EXP, QUE is high load, and MON is low load, while in the whole-lesson patterns it is not so clear). Maybe those are false positives?**
+
+
 #### Activity dimension
 
 
@@ -787,6 +932,49 @@ chisq.test(actsocTab)$residuals
 
 ```
 
+
+#### Epilogue: How does load vary with social level and activity (and experimental)?
+
+##### Load calculated using EEG and physical
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+loaddata3 <- loaddata[!is.na(loaddata$value.Social) & loaddata$value.Social!="IND",]
+loaddata3$value.Social <- as.factor(loaddata3$value.Social)
+loaddata3 <- loaddata3[!is.na(loaddata3$value.Activity) & loaddata3$value.Activity!="OFF" & loaddata3$value.Activity!="TEC",]
+loaddata3$value.Activity <- as.factor(loaddata3$value.Activity)
+
+m1 <- lm(FineLoad~value.Activity+value.Social-1,data=loaddata3)
+summary(m1)
+
+loaddata4 <- loaddata3[!is.na(loaddata3$value.Experimental) & loaddata3$value.Experimental!="COM",]
+loaddata4$value.Experimental <- as.factor(loaddata4$value.Experimental)
+m2 <- lm(FineLoad~value.Activity+value.Social+value.Experimental-1,data=loaddata4)
+summary(m2)
+
+```
+
+The model using fine load is still not able to distinguish significantly the C1/C2 contribution... but it has more power (p=0.1)
+
+
+##### Load with eyetracking only
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+loaddata3 <- loaddata2[!is.na(loaddata2$value.Social) & loaddata2$value.Social!="IND",]
+loaddata3$value.Social <- as.factor(loaddata3$value.Social)
+loaddata3 <- loaddata3[!is.na(loaddata3$value.Activity) & loaddata3$value.Activity!="OFF" & loaddata3$value.Activity!="TEC",]
+loaddata3$value.Activity <- as.factor(loaddata3$value.Activity)
+
+m1 <- lm(FineLoad~value.Activity+value.Social-1,data=loaddata3)
+summary(m1)
+
+loaddata4 <- loaddata3[!is.na(loaddata3$value.Experimental) & loaddata3$value.Experimental!="COM",]
+loaddata4$value.Experimental <- as.factor(loaddata4$value.Experimental)
+m2 <- lm(FineLoad~value.Activity+value.Social+value.Experimental-1,data=loaddata4)
+summary(m2)
+
+```
+
+Without the EEG and Acc, the C1/C2 conditions are quite indistinguishable..
 
 ### E: Session-level analysis and comparison
 

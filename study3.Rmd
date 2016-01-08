@@ -132,6 +132,21 @@ for(session in sessions){
 }
 ```
 
+#### A': Comparing coarse and fine load
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+
+
+#boxplot(FineLoad~CoarseLoad,data=loaddata)
+ggplot(loaddata, aes(x=as.factor(CoarseLoad),y=FineLoad))+geom_boxplot()
+ggplot(loaddata[loaddata$CoarseLoad==0 | loaddata$CoarseLoad==4,], aes(x=FineLoad))+geom_histogram()
+
+summary(loaddata[loaddata$CoarseLoad==0,"FineLoad"])
+summary(loaddata[loaddata$CoarseLoad==4,"FineLoad"])
+
+```
+
+
 ### B: Exploring the structure of the sensor (episode) load data 
 
 

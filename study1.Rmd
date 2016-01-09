@@ -355,6 +355,41 @@ chisq.test(actsocfocTab)$residuals
 
 ```
 
+#### D': Influence of the different factors on high-low load (alternative approach -- logistic regression)
+
+See http://www.ats.ucla.edu/stat/r/dae/logit.htm and http://www.r-bloggers.com/how-to-perform-a-logistic-regression-in-r/ for interpretation.
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+library(aod)
+library(ggplot2)
+
+behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Activity)),]
+behdata$Activity <- factor(behdata$Activity)
+behdata$Social <- factor(behdata$Social)
+behdata$Focus <- factor(behdata$Focus)
+behdata$CoarseType <- factor(behdata$CoarseLoad)
+
+#table(behdata$CoarseLoad,behdata$Focus)
+logit1 <- glm(CoarseType ~ Activity + Social, data = behdata, family = "binomial")
+summary(logit1)
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = 2:4) # Is Activity significant? Yes
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(1,5)) # Is Social significant? Yes -- not sure it is done like this
+#exp(coef(logit1)) # To see odds ratio change for each variable
+with(logit1, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+# logit2 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata, family = "binomial") # This one does not seem to work, has too many zeroes in the table!
+# summary(logit2)
+# wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 2:4) # Is Activity significant? Yes
+# wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(1,5)) # Is Social significant? Yes -- not sure it is done like this
+# #exp(coef(logit2)) # To see odds ratio change for each variable
+# with(logit2, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
+```
+
+
 
 ### E: Session-level analysis and comparison
 

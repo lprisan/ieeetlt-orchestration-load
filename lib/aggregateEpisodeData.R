@@ -56,7 +56,7 @@ aggregateEpisodeData <- function(sessions, datadir=".", initendtimes=NULL, windo
             filedata$session <- session
             sacdata <- data.frame(filedata)
             # We add the saccade speed and linear velocity for each saccade
-            sacdata$Saccade.Speed <- sacdata$Amplitude.... / sacdata$Saccade.Duration..ms.
+            sacdata$Saccade.Speed <- sacdata[,8] / sacdata$Saccade.Duration..ms.
             sacdata$Saccade.Length<-sqrt(((sacdata$StartPosition.X-sacdata$EndPosition.X)*(sacdata$StartPosition.X-sacdata$EndPosition.X))
                                          +((sacdata$StartPosition.Y-sacdata$EndPosition.Y)*(sacdata$StartPosition.Y-sacdata$EndPosition.Y)))
             sacdata$Saccade.Velocity<-sacdata$Saccade.Length/sacdata$Saccade.Duration..ms.
@@ -105,7 +105,7 @@ aggregateEpisodeData <- function(sessions, datadir=".", initendtimes=NULL, windo
         sdurdata <- rollingMean(sacdata$Time.ms,sacdata$Saccade.Duration..ms.,window*1000,slide*1000, inittime=inittime, endtime=endtime)
         
         # Saccade Amplitude
-        sampdata <- rollingMean(sacdata$Time.ms,sacdata$Amplitude....,window*1000,slide*1000, inittime=inittime, endtime=endtime)
+        sampdata <- rollingMean(sacdata$Time.ms,sacdata[,8],window*1000,slide*1000, inittime=inittime, endtime=endtime)
         
         # Saccade Length
         slendata <- rollingMean(sacdata$Time.ms,sacdata$Saccade.Length,window*1000,slide*1000, inittime=inittime, endtime=endtime)

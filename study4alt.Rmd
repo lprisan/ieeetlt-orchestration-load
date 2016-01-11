@@ -579,6 +579,59 @@ The general **orchestration patterns** with load defined by the first PCA compon
 Once we correct by Activity and Social, there is a difference in the 1st PCA component between C1/C2 conditions (in the right direction) IS significant.
 
 
+**Would a PCA of only the ET data catch the difference??**
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+# Raw data PCA
+res.pca = PCA(loaddataET[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca, axes=c(1, 2), choix="var", title="Raw ET data, dims 1/2")
+plot.PCA(res.pca, axes=c(3, 4), choix="var", title="Raw ET data, dims 3/4")
+loaddataET$Dim1 = res.pca$ind$coord[,1]
+loaddataET$Dim2 = res.pca$ind$coord[,2]
+loaddataET$Dim3 = res.pca$ind$coord[,3]
+loaddataET$Dim4 = res.pca$ind$coord[,4]
+
+res.pca.norm = PCA(loaddataET[, c(14,17,20,23)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="Normalized data, dims 1/2")
+plot.PCA(res.pca.norm, axes=c(3, 4), choix="var", title="Normalized data, dims 3/4")
+loaddataET$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddataET$Dim2Norm = res.pca.norm$ind$coord[,2]
+loaddataET$Dim3Norm = res.pca.norm$ind$coord[,3]
+loaddataET$Dim4Norm = res.pca.norm$ind$coord[,4]
+
+# Orchestration patterns
+lmPCA <- lm(Dim1 ~ value.Activity+value.Social, data=loaddataET)
+summary(lmPCA) #  are high load,   is low load
+anova(lmPCA)
+# Models based on all the data -- influence of the experimental condition?
+lmPCAx <- lm(Dim1 ~ value.Activity+value.Social+value.Experimental, data=loaddataET)
+summary(lmPCAx) # C1 and C2 have coefficients  as expected...
+anova(lmPCAx)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmPCAx), Sigma = vcov(lmPCAx), L = l)  # ... And the difference is  significant
+
+# Orchestration patterns
+lmPCA <- lm(Dim1Norm ~ value.Activity+value.Social, data=loaddataET)
+summary(lmPCA) #  are high load,   is low load
+anova(lmPCA)
+# Models based on all the data -- influence of the experimental condition?
+lmPCAx <- lm(Dim1Norm ~ value.Activity+value.Social+value.Experimental, data=loaddataET)
+summary(lmPCAx) # C1 and C2 have coefficients  as expected...
+anova(lmPCAx)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmPCAx), Sigma = vcov(lmPCAx), L = l)  # ... And the difference is  significant
+
+
+```
+
+BOTH the raw and normalized PCAs are able to significantly distinguish C1/C2.
+
+The "first PCA component load" patterns for the raw PCA are CLS, QUE as high load, and MON, GRP as low load.
+
+Oddly, the "first PCA component load" patterns for the normalized PCA are similar in terms of Activity, but OPPOSITE in the social plane (GRP is higher load) -- but given that in the normalized the pupil mean goes opposite to the main component, it is not so rare.
+
+
+
 ### HMMs
 
 

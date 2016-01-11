@@ -708,14 +708,15 @@ chisq.test(actsocfocTab)$residuals
 
 See http://www.ats.ucla.edu/stat/r/dae/logit.htm and http://www.r-bloggers.com/how-to-perform-a-logistic-regression-in-r/ for interpretation.
 
+
+
 ```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
 library(aod)
 library(ggplot2)
 
 # In these sessions there are coarse load value of 1 and 3 too!
 behdata <- loaddata[(!is.na(loaddata$Activity)) & !is.na(loaddata$session),]
-behdata$CoarseType <- ifelse(behdata$CoarseLoad>2,"Hi","Lo")
-behdata$CoarseType <- factor(behdata$CoarseType)
+behdata$CoarseType <- ifelse(behdata$CoarseLoad>2,1,0)
 # Eliminate the values of which we do not have enough data
 behdata <- behdata[behdata$Social!="GRP",]
 behdata <- behdata[behdata$Focus!="TEA",]
@@ -737,7 +738,6 @@ behdata$Focus <- factor(behdata$Focus)
 # library(pscl)
 # pR2(logit1)# pseudo R^2, to see the model fit
 
-
 # Separate teachers model
 # Expert teacher
 behdata1 <- behdata[complete.cases(behdata) & behdata$session!="DELANA-Session3-Novice-eyetracking",]
@@ -745,7 +745,7 @@ behdata1 <- behdata[complete.cases(behdata) & behdata$session!="DELANA-Session3-
 logit1 <- glm(CoarseType ~ Activity + Social, data = behdata1, family = "binomial")
 summary(logit1)
 wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = 2:5) # Is Activity significant? No
-wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(1,6)) # Is Social significant? No -- not sure it is done like this
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(6)) # Is Social significant? No -- not sure it is done like this
 #exp(coef(logit1)) # To see odds ratio change for each variable
 with(logit1, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
 anova(logit1, test="Chisq")
@@ -755,7 +755,7 @@ pR2(logit1)# pseudo R^2, to see the model fit
 logit2 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata1, family = "binomial") # This one does not seem to work, has too many zeroes in the table!
 summary(logit2)
 wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 2:5) # Is Activity significant? NO
-wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(1,6)) # Is Social significant? NO -- not sure it is done like this
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(6)) # Is Social significant? NO -- not sure it is done like this
 wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 7:10) # Is Focus significant? Yes
 # exp(coef(logit2)) # To see odds ratio change for each variable
 with(logit2, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model - it is significantly better than no model
@@ -765,22 +765,30 @@ pR2(logit2)# pseudo R^2, to see the model fit
 
 # Novice teacher
 behdata2 <- behdata[complete.cases(behdata) & behdata$session=="DELANA-Session3-Novice-eyetracking",]
+behdata2 <- behdata2[behdata2$Activity!="QUEST",]
+behdata2$Activity <- factor(behdata2$Activity)
 
 logit1 <- glm(CoarseType ~ Activity + Social, data = behdata2, family = "binomial")
 summary(logit1)
-wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = 2:4) # Is Activity significant? No
-wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(1,5)) # Is Social significant? No -- not sure it is done like this
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = 2:3) # Is Activity significant? No
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(4)) # Is Social significant? No -- not sure it is done like this
 #exp(coef(logit1)) # To see odds ratio change for each variable
 with(logit1, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model - it IS significant
 anova(logit1, test="Chisq")
 library(pscl)
 pR2(logit1)# pseudo R^2, to see the model fit
 
+
+behdata2 <- behdata2[behdata2$Focus!="WHIT",]
+behdata2 <- behdata2[behdata2$Focus!="PROJ",]
+behdata2$Focus <- factor(behdata2$Focus)
+
+
 logit2 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata2, family = "binomial") # This one does not seem to work, has too many zeroes in the table!
 summary(logit2)
-wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 2:4) # Is Activity significant? NO
-wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(1,5)) # Is Social significant? NO -- not sure it is done like this
-wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 6:9) # Is Focus significant? NO
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 2:3) # Is Activity significant? NO
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(4)) # Is Social significant? NO -- not sure it is done like this
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 5:6) # Is Focus significant? NO
 # exp(coef(logit2)) # To see odds ratio change for each variable
 with(logit2, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model - it is significantly better than no model
 anova(logit2, test="Chisq")
@@ -790,6 +798,12 @@ pR2(logit2)# pseudo R^2, to see the model fit
 
 
 ```
+
+We find that, for the expert teacher, Activity and Social do not provide a significant predictor/model of the chances of being in a high/low load moment. Adding the Focus to the model shows that the focus of the gaze makes a much better predictor (but still, much worse than in the other cases). PROJ and TCOMP seem to increase the chances of it being a low-load episode.
+
+For the novice teacher, the data is not enough to produce reliable models. It looks like FAC, CLS, EXP are related to high-load, and TCOMP with low load, but predictors are not significant.
+
+
 
 
 

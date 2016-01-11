@@ -1,0 +1,419 @@
+---
+title: "Study 4 Alternative Analysis"
+author: "Luis P. Prieto"
+abstract: "This is a cleaner, simpler analysis of the data (including complete coding of the video in terms of Activity, Social plane and Experimental condition) of JDC2015 study (study 4, in the paper)."
+output: html_document
+---
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+loaddata <- get(load("./data/study4/study4LoadData.Rda"))
+str(loaddata)
+```
+
+## Exploratory analysis
+
+### Distribution of values
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=FALSE}
+library(ggplot2)
+
+#ggplot(data=loaddata, aes(x=loaddata$value.Mean))+geom_density()
+#ggplot(data=loaddata, aes(x=loaddata$value.SD))+geom_density()
+#ggplot(data=loaddata, aes(x=loaddata$value.Sac))+geom_density()
+#ggplot(data=loaddata, aes(x=loaddata$value.Fix))+geom_density()
+#ggplot(data=loaddata, aes(x=loaddata$value.Theta))+geom_density()
+#ggplot(data=loaddata, aes(x=loaddata$value.Jerk.Mean))+geom_density()
+
+ggplot(data=loaddata, aes(x=loaddata$value.Mean.norm))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.SD.norm))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Sac.norm))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Fix.norm))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Theta.norm))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Jerk.Mean.norm))+geom_density()
+
+```
+
+**Q**: The densities are similar, but of course the scaling is different... which one should we use?
+
+### Correlations between load metrics
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+library(corrplot)
+#M <- cor(loaddata[, c(3:6,11:12)])
+#corrplot.mixed(M,main="Correlations, raw values")
+M <- cor(loaddata[, c(14,17,20,23,29,35)])
+corrplot.mixed(M,main="Correlations, normalized values")
+```
+
+**Q**: The correlations vary a lot depending on whether we use the normalized or raw values... which ones should we use?
+
+### PCA
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca = PCA(loaddata[, c(3:6,11:12)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca, axes=c(1, 2), choix="var", title="Raw data, dims 1/2")
+plot.PCA(res.pca, axes=c(3, 4), choix="var", title="Raw data, dims 3/4")
+loaddata$Dim1 = res.pca$ind$coord[,1]
+loaddata$Dim2 = res.pca$ind$coord[,2]
+loaddata$Dim3 = res.pca$ind$coord[,3]
+loaddata$Dim4 = res.pca$ind$coord[,4]
+
+res.pca.norm = PCA(loaddata[, c(14,17,20,23,29,35)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="Normalized data, dims 1/2")
+plot.PCA(res.pca.norm, axes=c(3, 4), choix="var", title="Normalized data, dims 3/4")
+loaddata$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddata$Dim2Norm = res.pca.norm$ind$coord[,2]
+loaddata$Dim3Norm = res.pca.norm$ind$coord[,3]
+loaddata$Dim4Norm = res.pca.norm$ind$coord[,4]
+```
+
+
+Components (raw data): 
+
+1. Aggregate of most ET (except Fix) and Acc metrics 
+2. Aggregate of most ET (except Sac) metrics
+3. Inverse of EEG-measured load (theta)
+4. Saccades vs. Jerk
+
+Components (normalized data): 
+1. Saccades, Pupil SD and Acc Jerk (and Theta-based)
+2. Fixations vs. Pupil Mean and Theta-based
+3. Acc Jerk vs. Theta-based and Fixations
+4. Fixations and Acc Jerk
+
+
+### HMM
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+library(depmixS4)
+library(ggplot2)
+
+## We plot the BIC for different number of states, just to check
+# states <- 2:16
+# BICs <- 39000
+# for(i in states){
+#     print(paste(i,"..."))
+#     # Overall
+#     set.seed(1)
+#     #set up the HMM model
+#     #mod <- depmix(list(value.Mean.norm~1,value.SD.norm~1,value.Sac.norm~1,value.Fix.norm~1,value.Jerk.Mean.norm~1,value.Theta.norm~1), data=loaddata, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson(),gaussian(),gaussian()),ntimes=summary(as.factor(loaddata$session)), verbose=F)
+#     mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1,value.Jerk.Mean~1,value.Theta~1), data=loaddata, nstates=i, family=list(gaussian(),gaussian(),gaussian(),poisson(),gaussian(),gaussian()),ntimes=summary(as.factor(loaddata$session)), verbose=F)
+#     #fit the model 
+#     f <- fit(mod, verbose=F)
+# #    print(f)
+#     BICs[i] <- BIC(f)
+#     esttrans <- posterior(f)
+#     loaddata$MMstate <- esttrans[,1]
+#     print(table(loaddata$session,loaddata$MMstate))
+# }
+# BICs[1] <- max(BICs[2:16])
+# qplot(1:16,BICs,geom="line")
+
+#numstates <- 8 # The criteria should also be that all sessions have all states... no number of states complies with this in the normalized metrics !!!! We try the HMM with raw data then...
+numstates <- 6 # This is the smallest number that is close to the minimum in BIC 
+# Overall
+set.seed(1)
+#set up the HMM model
+mod <- depmix(list(value.Mean~1,value.SD~1,value.Sac~1,value.Fix~1,value.Jerk.Mean~1,value.Theta~1), data=loaddata, nstates=numstates, family=list(gaussian(),gaussian(),gaussian(),poisson(),gaussian(),gaussian()),ntimes=summary(as.factor(loaddata$session)), verbose=F)
+#fit the model 
+f <- fit(mod, verbose=F)
+#check to see how the state transtion matricies and process mean/sd matches our sample data
+summary(f)
+#get the estimated state for each timestep 
+esttrans <- posterior(f)
+loaddata$MMstate6 <- esttrans[,1]
+table(loaddata$session,loaddata$MMstate6)
+plot(1:nrow(loaddata), esttrans[,1], type='p', col=as.factor(loaddata$session), main=paste('Estimated state',numstates))
+
+```
+
+The load states seem to be the following:
+
+1. Hi-PDmean, MidHi-PDsd, Hi-Sac, Hi-Fix, Hi-Jerk, Hi-Theta: High CL (except EEG), High physical
+2. Hi-PDmean, Hi-PDsd, Hi-Sac, Mid-Fix, Low-Jerk, Mid-Theta: High CL, Low physical
+3. MidLo-PDmean, Low-PDsd, Low-Sac, Hi-Fix, Low-Jerk, Low-Theta: Low CL (except EEG), Low physical
+4. Highest-PDmean, Hi-PDsd, Mid-Sac, Mid-Fix, Mid-Jerk, Low-Theta: High CL (PD and EEG), Mid physical
+5. MidLo-PDmean, Mid-PDsd, MidHi-Sac, Hi-Fix, MidHi-Jerk, Mid-Theta: Mid CL, mid physical
+6. Lo-PDmean, Low-PDsd, Mid-Sac, Mid-Fix, Low-Jerk, Hi-Theta: Low CL (PD and EEG), Low physical
+
+
+## How do cognitive load-related METRICS relate to the MANIPULATION (with/without helper)?
+
+### Separate load-related metrics
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+library(gplots)
+
+# Pupil mean
+plotmeans(value.Mean~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected...
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Mean"],loaddata[loaddata$value.Experimental=="C2","value.Mean"])$p.value #... but the difference is not significant
+plotmeans(value.Mean.norm~value.Experimental,data=loaddata,connect=F) # The metric behaves in the opposite way!
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Mean.norm"],loaddata[loaddata$value.Experimental=="C2","value.Mean.norm"])$p.value #... but the difference IS significant
+
+# Pupil sd
+plotmeans(value.SD~value.Experimental,data=loaddata,connect=F) # The metric behaves opposite to expected
+t.test(loaddata[loaddata$value.Experimental=="C1","value.SD"],loaddata[loaddata$value.Experimental=="C2","value.SD"])$p.value #... but the difference is not significant
+plotmeans(value.SD.norm~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected...
+t.test(loaddata[loaddata$value.Experimental=="C1","value.SD.norm"],loaddata[loaddata$value.Experimental=="C2","value.SD.norm"])$p.value #... and the difference is significant!
+
+# Saccade Spd
+plotmeans(value.Sac~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected...
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Sac"],loaddata[loaddata$value.Experimental=="C2","value.Sac"])$p.value #... and the difference is significant!
+plotmeans(value.Sac.norm~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Sac.norm"],loaddata[loaddata$value.Experimental=="C2","value.Sac.norm"])$p.value #... and the difference is significant!
+
+# Long fixations
+plotmeans(value.Fix~value.Experimental,data=loaddata,connect=F) # The metric behaves opposite as expected...
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Fix"],loaddata[loaddata$value.Experimental=="C2","value.Fix"])$p.value #... but the difference is not significant
+
+# Physical Jerk
+plotmeans(value.Jerk.Mean~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected...
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Jerk.Mean"],loaddata[loaddata$value.Experimental=="C2","value.Jerk.Mean"])$p.value #... but the difference is not significant
+plotmeans(value.Jerk.Mean.norm~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Jerk.Mean.norm"],loaddata[loaddata$value.Experimental=="C2","value.Jerk.Mean.norm"])$p.value #... and the difference IS significant!
+
+# EEG Theta
+plotmeans(value.Theta~value.Experimental,data=loaddata,connect=F) # The metric behaves opposite as expected...
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Theta"],loaddata[loaddata$value.Experimental=="C2","value.Theta"])$p.value #... but the difference IS significant!
+plotmeans(value.Theta.norm~value.Experimental,data=loaddata,connect=F) # The metric behaves in the opposite way!
+t.test(loaddata[loaddata$value.Experimental=="C1","value.Theta.norm"],loaddata[loaddata$value.Experimental=="C2","value.Theta.norm"])$p.value #... but the difference IS significant!
+
+```
+
+We see that the normalized PupilSD, (normalized or not) Sac, normalized Jerk behave as expected and ARE SIGNIFICANTLY different. Jerk and saccade speed can be explained by the physical distribution of the manipulation
+
+However, we also find that the EEG Theta (normalized or not), and normalized PupilMean gives OPPOSITE results to expected, in a significant way!
+
+**Q**: What do we make out of this? That only some metrics are good? that the goodness depends on the task at hand (this would have to be checked against the behavioral variables -- see below)?
+
+### Multi-metric load indices. Is it better than single ones (i.e., does it distinguish experimental condition)? 
+
+#### 4 Eyetracking
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+loaddataET <- calculateCoarseFineLoadIndex(loaddata,c(3:6),normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+plotmeans(CoarseLoad ~ value.Experimental, data=loaddataET, connect=F) # Does not behave as expected
+t.test(loaddataET[loaddataET$value.Experimental=="C1","CoarseLoad"],loaddataET[loaddataET$value.Experimental=="C2","CoarseLoad"])$p.value #... but the difference is not significant
+plotmeans(FineLoad ~ value.Experimental, data=loaddataET, connect=F) # Does not behave as expected
+t.test(loaddataET[loaddataET$value.Experimental=="C1","FineLoad"],loaddataET[loaddataET$value.Experimental=="C2","FineLoad"])$p.value #... but the difference is not significant
+
+```
+
+We see that the eyetrack-based load index does not catch the expectd difference in load!
+
+#### 4 Eyetracking + Theta
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+loaddataETT <- calculateCoarseFineLoadIndex(loaddata,c(3:6),normalize=T, inversecols = 11) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+plotmeans(CoarseLoad ~ value.Experimental, data=loaddataETT, connect=F) # Does not behave as expected
+t.test(loaddataETT[loaddataETT$value.Experimental=="C1","CoarseLoad"],loaddataETT[loaddataETT$value.Experimental=="C2","CoarseLoad"])$p.value #... but the difference is not significant
+plotmeans(FineLoad ~ value.Experimental, data=loaddataETT, connect=F) # Does not behave as expected
+t.test(loaddataETT[loaddataETT$value.Experimental=="C1","FineLoad"],loaddataETT[loaddataETT$value.Experimental=="C2","FineLoad"])$p.value #... but the difference is not significant
+
+```
+
+Adding the EGG does not help either in catching the expected difference in load!
+
+#### 4 Eyetracking + Theta + Acc Jerk
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+loaddataETTA <- calculateCoarseFineLoadIndex(loaddata,c(3:6,12),normalize=T, inversecols = 11) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+plotmeans(CoarseLoad ~ value.Experimental, data=loaddataETTA, connect=F) # Does not behave as expected
+t.test(loaddataETTA[loaddataETTA$value.Experimental=="C1","CoarseLoad"],loaddataETTA[loaddataETTA$value.Experimental=="C2","CoarseLoad"])$p.value #... but the difference is not significant
+plotmeans(FineLoad ~ value.Experimental, data=loaddataETTA, connect=F) # Does not behave as expected
+t.test(loaddataETTA[loaddataETTA$value.Experimental=="C1","FineLoad"],loaddataETTA[loaddataETTA$value.Experimental=="C2","FineLoad"])$p.value #... but the difference is not significant
+
+```
+
+Adding the physical load does not help either in catching the expected difference in load!
+
+This means that, even if some of the measures do catch the difference, others do not (or do it opposingly, hence canceling the effect of the "good metrics")
+
+
+### PCA dimensions
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+#Raw dimensions
+plotmeans(Dim1 ~ value.Experimental, data=loaddata, connect=F) # Behaves as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim1"],loaddata[loaddata$value.Experimental=="C2","Dim1"])$p.value #... and the difference is significant!
+plotmeans(Dim2 ~ value.Experimental, data=loaddata, connect=F) # Behaves opposite as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim2"],loaddata[loaddata$value.Experimental=="C2","Dim2"])$p.value #... and the difference is significant!
+plotmeans(Dim3 ~ value.Experimental, data=loaddata, connect=F) # Behaves opposite as expected (it is theta-based)
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim3"],loaddata[loaddata$value.Experimental=="C2","Dim3"])$p.value #... and the difference is significant
+plotmeans(Dim4 ~ value.Experimental, data=loaddata, connect=F) # Behaves as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim4"],loaddata[loaddata$value.Experimental=="C2","Dim4"])$p.value #... but the difference is not significant
+
+#Normalized dimensions
+plotmeans(Dim1Norm ~ value.Experimental, data=loaddata, connect=F) # Behaves as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim1Norm"],loaddata[loaddata$value.Experimental=="C2","Dim1Norm"])$p.value #... and the difference is significant!
+plotmeans(Dim2Norm ~ value.Experimental, data=loaddata, connect=F) # Not clear how it should behave... goes more into Fix
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim2Norm"],loaddata[loaddata$value.Experimental=="C2","Dim2Norm"])$p.value #... and the difference is significant!
+plotmeans(Dim3Norm ~ value.Experimental, data=loaddata, connect=F) # Not clear how it should behave... goes more into Jerk
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim3Norm"],loaddata[loaddata$value.Experimental=="C2","Dim3Norm"])$p.value #... and the difference is significant
+plotmeans(Dim4Norm ~ value.Experimental, data=loaddata, connect=F) # Behaves as expected
+t.test(loaddata[loaddata$value.Experimental=="C1","Dim4Norm"],loaddata[loaddata$value.Experimental=="C2","Dim4Norm"])$p.value #... but the difference is not significant
+
+```
+
+Interestingly, in both normalized and raw data, the first dimension behaves as expected, and the differences are significant!
+
+
+### HMMs
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+expdata <- loaddata[loaddata$value.Experimental=="C1" | loaddata$value.Experimental=="C2",]
+expdata$value.Experimental <- factor(expdata$value.Experimental)
+tabhmm <- table(expdata$value.Experimental,expdata$MMstate6)
+chisq.test(tabhmm)$p.value
+chisq.test(tabhmm)$residuals
+
+```
+
+The 6-state HMMs do not catch significant differences in the experimental conditions.
+
+
+## How do cognitive load-related METRICS relate to the orchestration dimensions? What are the orchestration load patterns?
+
+### Separate load-related metrics
+
+We can try to discern the effect of the Activity and Social level on the different metrics, and see whether, after substracting those effects, the metric still catches the difference between C1 and C2
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+# Orchestration patterns
+lmMn <- lm(value.Mean ~ value.Activity+value.Social, data=loaddata)
+summary(lmMn) # TDT, EXP, CLS are high load, MON, REP, GRP are low load
+anova(lmMn)
+lmMnN <- lm(value.Mean.norm ~ value.Activity+value.Social, data=loaddata)
+summary(lmMnN) # TDT, CLS are high load, MON, REP, GRP are low load
+anova(lmMnN)
+# Models based on all the data -- influence of the experimental condition?
+lmMean <- lm(value.Mean ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmMean) # C1 and C2 have coefficients opposite as expected...
+anova(lmMean)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmMean), Sigma = vcov(lmMean), L = l)  # ... And the difference is significant!
+lmMeanNorm <- lm(value.Mean.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmMeanNorm)  # C1 and C2 have coefficients opposite as expected...
+anova(lmMeanNorm)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmMeanNorm), Sigma = vcov(lmMeanNorm), L = l)  # ... And the difference is significant!
+
+```
+
+**Pupil mean pattern**: Activity and Social are significant, TDT, EXP, CLS are high load, MON, REP, GRP are low load
+**(norm) Pupil mean pattern**: Activity and Social are significant, TDT, CLS are high load, MON, REP, GRP are low load
+**Contrasts**: In both cases, the model puts load coefficients in the wrong direction, significantly!
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+# Orchestration patterns
+lmSd <- lm(value.SD ~ value.Activity+value.Social, data=loaddata)
+summary(lmSd) # QUE (maybe TDT) are high load, GRP is low load
+anova(lmSd)
+lmSdN <- lm(value.SD.norm ~ value.Activity+value.Social, data=loaddata)
+summary(lmSdN) # QUE, CLS are high load, MON, GRP are low load
+anova(lmSdN)
+# Models based on all the data -- influence of the experimental condition?
+lmSDx <- lm(value.SD ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmSDx) # C1 and C2 have coefficients opposite as expected...
+anova(lmSDx)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmSDx), Sigma = vcov(lmSDx), L = l)  # ... And the difference is not significant
+lmSDNorm <- lm(value.SD.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmSDNorm)  # C1 and C2 have coefficients as expected
+anova(lmSDNorm)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmSDNorm), Sigma = vcov(lmSDNorm), L = l)  # ... And the difference is significant!
+
+```
+
+**Pupil sd pattern**: Activity and Social are significant, QUE, TDT, CLS are high load, GRP are low load
+**(norm) Pupil sd pattern**: Activity and Social are significant, QUE, CLS are high load, MON, GRP are low load
+**Contrasts**: In the raw metric, the C1/C2 coefficients are not so different, but in the normalized SD metric the coefficients are as expected, and the difference is significant!
+
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+# Orchestration patterns
+lmSc <- lm(value.Sac ~ value.Activity+value.Social, data=loaddata)
+summary(lmSc) # QUE (maybe TDT) are high load, GRP is low load
+anova(lmSc)
+lmScN <- lm(value.Sac.norm ~ value.Activity+value.Social, data=loaddata)
+summary(lmScN) # QUE, CLS are high load, MON, GRP are low load
+anova(lmScN)
+# Models based on all the data -- influence of the experimental condition?
+lmSac <- lm(value.Sac ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmSac) # C1 and C2 have coefficients as expected...
+anova(lmSac)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmSac), Sigma = vcov(lmSac), L = l)  # ... And the difference is significant!
+lmSacNorm <- lm(value.Sac.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmSacNorm)  # C1 and C2 have coefficients as expected
+anova(lmSacNorm)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmSacNorm), Sigma = vcov(lmSacNorm), L = l)  # ... And the difference is significant!
+
+```
+
+**Pupil sd pattern**: Activity is NOT significant, Social IS. CLS is higher load, GRP lower load
+**(norm) Pupil sd pattern**: Activity IS significant, and Social is NOT. TDT, EXP is high load, MON, REP are low load
+**Contrasts**: Both in the raw and normalized Sac metric, the C1/C2 coefficients are going in the expected direction, and the difference is significant. 
+
+
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+# Orchestration patterns
+lmFx <- lm(value.Fix ~ value.Activity+value.Social, data=loaddata)
+summary(lmFx) #  are high load,  is low load
+anova(lmFx)
+lmFxN <- lm(value.Fix.norm ~ value.Activity+value.Social, data=loaddata)
+summary(lmFxN) #  are high load,  are low load
+anova(lmFxN)
+# Models based on all the data -- influence of the experimental condition?
+lmFix <- lm(value.Fix ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmFix) # C1 and C2 have coefficients as expected...
+anova(lmFix)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmFix), Sigma = vcov(lmFix), L = l)  # ... And the difference is significant!
+lmFixNorm <- lm(value.Fix.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+summary(lmFixNorm)  # C1 and C2 have coefficients as expected
+anova(lmFixNorm)
+l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+wald.test(b = coef(lmFixNorm), Sigma = vcov(lmFixNorm), L = l)  # ... And the difference is significant!
+
+```
+
+TODO: Execute above and continue writing below!!!
+
+**Pupil sd pattern**: Activity is NOT significant, Social IS. CLS is higher load, GRP lower load
+**(norm) Pupil sd pattern**: Activity IS significant, and Social is NOT. TDT, EXP is high load, MON, REP are low load
+**Contrasts**: Both in the raw and normalized Sac metric, the C1/C2 coefficients are going in the expected direction, and the difference is significant. 
+
+
+
+
+
+### Multi-metric load indices. Is it better than single ones? 
+
+#### 4 Eyetracking
+
+
+#### 4 Eyetracking + Theta
+
+
+#### 4 Eyetracking + Theta + Acc Jerk
+
+### PCA dimensions
+
+
+### HMMs

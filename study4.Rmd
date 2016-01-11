@@ -413,6 +413,9 @@ for(session in sessions){
             scale_color_gradient(low="green",high="red")
     print(p2)
 }
+
+save(loaddata, file="study4LoadData.Rda")
+
 ```
 
 We can also see whether there is any difference in the overall load regarding the **load manipulation** done (with helper (C1, session 1 and 4), and without help (C2, session 2 and 3)):
@@ -975,6 +978,91 @@ summary(m2)
 ```
 
 Without the EEG and Acc, the C1/C2 conditions are quite indistinguishable..
+
+
+
+#### D' Linear model using FineLoad
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+
+behdata <- loaddata[!is.na(loaddata$value.Activity) & !is.na(loaddata$value.Social),]
+behdata$Activity <- factor(behdata$value.Activity)
+behdata$Social <- factor(behdata$value.Social)
+
+# Optional: delete the factor values with too few occurrences?
+behdata <- behdata[behdata$Activity!="OFF",]
+behdata <- behdata[behdata$Activity!="TEC",]
+behdata$Activity <- factor(behdata$Activity)
+behdata <- behdata[behdata$Social!="IND",]
+behdata$Social <- factor(behdata$Social)
+
+
+lm1 <- lm(FineLoad ~ Activity+Social, data=behdata)
+summary(lm1)
+anova(lm1)
+
+```
+
+In this case, we get that both Activity and Social contribute significantly to the model (which still has a pretty low Rsquared). EXP and REP, and GRP seem to be lower load, and the TDT, CLS seems to be higher load than average.
+
+
+#### D': Influence of the different factors on high-low load (alternative approach -- logistic regression)
+
+See http://www.ats.ucla.edu/stat/r/dae/logit.htm and http://www.r-bloggers.com/how-to-perform-a-logistic-regression-in-r/ for interpretation.
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+library(aod)
+library(ggplot2)
+
+
+behdata <- loaddata[(loaddata$CoarseLoad>6|loaddata$CoarseLoad<2)&(!is.na(loaddata$value.Activity)),]
+behdata$Activity <- factor(behdata$value.Activity)
+behdata$Social <- factor(behdata$value.Social)
+behdata$CoarseType <- ifelse(behdata$CoarseLoad>4,1,0)
+# Optional: delete the factor values with too few occurrences?
+behdata <- behdata[behdata$Activity!="OFF",]
+behdata <- behdata[behdata$Activity!="TEC",]
+behdata <- behdata[behdata$Activity!="EXP",]
+behdata$Activity <- factor(behdata$Activity)
+behdata <- behdata[behdata$Social!="IND",]
+behdata$Social <- factor(behdata$Social)
+
+#table(behdata$CoarseType,behdata$Activity)
+logit1 <- glm(CoarseType ~ Activity + Social, data = behdata, family = "binomial")
+summary(logit1)
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = 2:4) # Is Activity significant? No
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(5)) # Is Social significant? Yes -- not sure it is done like this
+#exp(coef(logit1)) # To see odds ratio change for each variable
+with(logit1, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+```
+
+In this case, EXP seems to be going in the opposite direction, but there are too few instances in the extreme load moments to be certain. If we also eliminate EXP, we see that both Activity and Social are significantly related to the extreme load moments, with TDT, CLS seemingly increasing the chances of high load, and GRP lowering them significantly.
+
+
+
+
+Hence, we see kind of similar trends in both ways of analyzing the data (whole session or extreme load moments), but the linear model give us a higher certainty that we are catching the right patterns...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### E: Session-level analysis and comparison
 

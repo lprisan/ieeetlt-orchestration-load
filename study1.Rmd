@@ -363,32 +363,61 @@ See http://www.ats.ucla.edu/stat/r/dae/logit.htm and http://www.r-bloggers.com/h
 library(aod)
 library(ggplot2)
 
+
 behdata <- loaddata[(loaddata$CoarseLoad==4|loaddata$CoarseLoad==0)&(!is.na(loaddata$Activity)),]
 behdata$Activity <- factor(behdata$Activity)
 behdata$Social <- factor(behdata$Social)
 behdata$Focus <- factor(behdata$Focus)
-behdata$CoarseType <- factor(behdata$CoarseLoad)
+behdata$CoarseType <- ifelse(behdata$CoarseLoad>2,1,0)
 
-#table(behdata$CoarseLoad,behdata$Focus)
+#table(behdata$CoarseType,behdata$Focus)
 logit1 <- glm(CoarseType ~ Activity + Social, data = behdata, family = "binomial")
 summary(logit1)
 wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = 2:4) # Is Activity significant? Yes
-wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(1,5)) # Is Social significant? Yes -- not sure it is done like this
+wald.test(b = coef(logit1), Sigma = vcov(logit1), Terms = c(5)) # Is Social significant? No -- not sure it is done like this
 #exp(coef(logit1)) # To see odds ratio change for each variable
 with(logit1, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
 anova(logit1, test="Chisq")
 library(pscl)
 pR2(logit1)# pseudo R^2, to see the model fit
 
+behdata <- behdata[behdata$Focus!="M",]
+behdata <- behdata[behdata$Focus!="W",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata <- behdata[behdata$Focus!="RES",]
+behdata$Focus <- factor(behdata$Focus)
 
-# logit2 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata, family = "binomial") # This one does not seem to work, has too many zeroes in the table!
-# summary(logit2)
-# wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 2:4) # Is Activity significant? Yes
-# wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(1,5)) # Is Social significant? Yes -- not sure it is done like this
-# #exp(coef(logit2)) # To see odds ratio change for each variable
-# with(logit2, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
+logit2 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata, family = "binomial") # This one does not seem to work, has too many zeroes in the table!
+summary(logit2)
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 2:4) # Is Activity significant? Yes
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = c(5)) # Is Social significant? Yes -- not sure it is done like this
+wald.test(b = coef(logit2), Sigma = vcov(logit2), Terms = 6:8) # Is Focus #exp(coef(logit2)) # To see odds ratio change for each variable
+with(logit2, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) #p-value of the model
+anova(logit2, test="Chisq")
+library(pscl)
+pR2(logit2)# pseudo R^2, to see the model fit
+
 ```
 
+It seems that Activity is significantly related to the chances, but Social not so clearly so (due to the zeros in the table -- no low load with the CLS plane). It looks like focus on BAK, CLS, EXP (REP, TDT) is high load, but none is a significant predictor, and TAB is low load.
+
+
+#### Linear model using the extreme values of FineLoad?
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+
+behdata <- loaddata[!is.na(loaddata$Activity) & !is.na(loaddata$Social) & !is.na(loaddata$Focus),]
+behdata$Activity <- factor(behdata$Activity)
+behdata$Social <- factor(behdata$Social)
+behdata$Focus <- factor(behdata$Focus)
+
+lm1 <- lm(FineLoad ~ Activity+Social+Focus, data=behdata)
+summary(lm1)
+anova(lm1)
+
+```
+
+In this case, we get that EXP, CLS, BAK tends to give high load (intercept), and TAB, M give significantly lower loads... hence, quite similar trends to the logistic regression on Coarse load index
 
 
 ### E: Session-level analysis and comparison

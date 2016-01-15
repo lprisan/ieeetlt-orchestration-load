@@ -1,0 +1,234 @@
+---
+title: "Study 1 Alternative Analysis"
+author: "Luis P."
+date: "January 15, 2016"
+output: html_document
+---
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+library(ggplot2)
+# We load the useful scripts and packages needed throughout the report
+source("./lib/rollingWindows.R")
+source("./lib/loadIndex.R")
+source("./lib/extremeLoadExtraction.R")
+source("./lib/aggregateEpisodeData.R")
+source("./lib/multiplot.R")
+source("./lib/outliers.R")
+
+rootdir <- getwd()
+setwd(paste(rootdir,"/data/study1",sep=""))
+
+# We do the preprocessing, which will generate a Rda file with the 10s
+# window data, and will return the name of the file
+
+sessions <- c("JDC2014-Session1-eyetracking","JDC2014-Session2-eyetracking","JDC2014-Session3-eyetracking")
+
+cleandatafile <- "study1ProcessedData.Rda"
+
+totaldata <- get(load(cleandatafile))
+
+# We crop outliers in the saccade speed. They tend to throw off the HMM and PCA calculations
+#countOutliers(totaldata$value.Sac,coef = 5, method="iqr") # 5xinter-quartile range
+totaldata$value.Sac <- replaceOutliers(totaldata$value.Sac,valueNA = F,coef = 5, method="iqr")
+
+loaddata <- calculateCoarseFineLoadIndex(totaldata,3:6,normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+#str(loaddata)
+names(loaddata)
+```
+
+# Exploratory analysis of the physiological signals
+
+... always taking into account the normalized values, not the raw ones!
+
+## Correlations
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(corrplot)
+M <- cor(loaddata[, c(13,16,19,22)])
+corrplot.mixed(M,main="Correlations, normalized values")
+```
+
+We see correlations are far from perfect, which is to be expected, given that different metrics can catch different parts of the multitask activity[^ryu]
+
+[^ryu]: Ryu, K., & Myung, R. (2005). Evaluation of mental workload with a combined measure based on physiological indices during a dual task of tracking and mental arithmetic. International Journal of Industrial Ergonomics, 35(11), 991-1009.
+
+## PCA
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(loaddata[, c(13,16,19,22)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, Normalized data, dims 1/2")
+loaddata$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddata$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(loaddata, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddata, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddata, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(loaddata[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(loaddata$CoarseLoad),FUN=mean)
+
+```
+
+It is slightly different, and the load index correlates much better with the second PCA dimension
+
+# How each signal behaves with respect to the behavioral codes
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+library(gplots)
+
+behdata <- loaddata[!is.na(loaddata$Activity) & !is.na(loaddata$Social) & !is.na(loaddata$Focus),]
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Mean.norm))+geom_density()
+
+plotmeans(behdata$value.Mean.norm~behdata$Activity)
+plotmeans(behdata$value.Mean.norm~behdata$Social)
+plotmeans(behdata$value.Mean.norm~behdata$Focus)
+
+```
+
+The mean pupil diameter could be affected by the high luminosity of the tabletop, which also gets reflected in the MON, REP and the G codes which happen most often there. How important is this influence? We can do a linear model of the mean-related load to check... and we find out that even taking away the effect of the TAB, the trends of MON, REP and G go in the same direction.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=TRUE}
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata <- behdata[behdata$Focus!="W",]
+behdata <- behdata[behdata$Focus!="M",]
+behdata <- behdata[behdata$Focus!="RES",]
+behdata$Focus <- factor(behdata$Focus)
+lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.SD.norm))+geom_density()
+
+plotmeans(behdata$value.SD.norm~behdata$Activity)
+plotmeans(behdata$value.SD.norm~behdata$Social)
+plotmeans(behdata$value.SD.norm~behdata$Focus)
+
+```
+
+AGain, the SD pupil diameter could be affected by the high luminosity of the tabletop (which may induce a lower contraction/variance of the pupil diameter, if looked at it for a long period of time), which also could explain the low values on MON, REP and the G codes which happen most often there. How important is this influence? We can do a linear model of the mean-related load to check, and we see that the G still has low trends.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.SD.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Sac.norm))+geom_density()
+
+plotmeans(behdata$value.Sac.norm~behdata$Activity)
+plotmeans(behdata$value.Sac.norm~behdata$Social)
+plotmeans(behdata$value.Sac.norm~behdata$Focus)
+
+```
+
+The Saccade Speed could be physically related to the classroom level, so we also do a model to try to take out its influence with a linear model... we see that, once we get out the influence
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.Sac.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Fix.norm))+geom_density()
+
+plotmeans(behdata$value.Fix.norm~behdata$Activity)
+plotmeans(behdata$value.Fix.norm~behdata$Social)
+plotmeans(behdata$value.Fix.norm~behdata$Focus)
+
+```
+
+(Here I cannot see any specific trend that can be explained in purely physical terms)
+
+
+
+# Descriptive behavioral patterns
+
+We coded the parts of the session where we are most confident that load is high (Coarse Load Index=4) or low (Coarse Load Index=4). What are the observed trends in terms of teacher Activity, Social plane and Focus of the gaze?
+
+## In terms of Load Index
+
+We train a logistic regression model that tries to predict whether a coded episode was of the high or low load kind, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+
+library(aod)
+library(ggplot2)
+
+behdata <- loaddata[!is.na(loaddata$Activity) & !is.na(loaddata$Social) & !is.na(loaddata$Focus),]
+
+behdata$CoarseType <- ifelse(behdata$CoarseLoad>2,1,0)
+behdata$CoarseType <- ifelse(behdata$CoarseLoad==2,NA,behdata$CoarseType)
+# table(behdata$CoarseType)
+table(behdata$CoarseType,behdata$Activity)
+table(behdata$CoarseType,behdata$Social)
+table(behdata$CoarseType,behdata$Focus)
+
+# Optional: delete the factor values with too few occurrences?
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata <- behdata[behdata$Focus!="W",]
+behdata <- behdata[behdata$Focus!="M",]
+behdata <- behdata[behdata$Focus!="RES",]
+behdata$Focus <- factor(behdata$Focus)
+
+logit1 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+```
+
+We see that, although far from perfect (pseudo-Rsquared=0.47), the model finds all three dimensions significantly contributing to the model.
+
+Looking at the significance of the coefficients in the model, we see that EXP, CLS, BAK tends to be significantly related to the chances of being in high load episode, and MON, TAB in the low-load ones.
+
+
+
+## In terms of PCA-extracted Index
+
+The distribution of coded values goes continuouosly along the dimension, so we do a linear model in this case, that tries to predict the PCA dimension, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+
+behdata <- loaddata[!is.na(loaddata$Activity) & !is.na(loaddata$Social) & !is.na(loaddata$Focus),]
+
+#ggplot(loaddata,aes(x=Dim1Norm))+geom_density()
+ggplot(behdata,aes(x=Dim1Norm))+geom_density()
+# The distribution of coded values goes continuouosly along the dimension, so we do a linear model
+
+# Optional: delete the factor values with too few occurrences?
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata <- behdata[behdata$Focus!="W",]
+behdata <- behdata[behdata$Focus!="M",]
+behdata <- behdata[behdata$Focus!="RES",]
+behdata$Focus <- factor(behdata$Focus)
+
+lm1 <- lm(Dim1Norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+
+```
+
+We see that, again, all three dimensions contribute significantly to the predictive power of the model (which is not too good, adjusted Rsquared=0.33)
+
+Again, we see that EXP, CLS, BAK tends to be especially associated with high load, and TAB with low load. There are also non-significant trends (MON tends to be higher, FAC, MD tend to be lower than the BAK, G tends to be lower).

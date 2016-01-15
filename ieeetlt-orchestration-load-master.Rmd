@@ -16,12 +16,14 @@ Orchestration load (the effort a teacher spends in coordinating the multiple act
 Describe briefly the method...
 
 
-```{r, child="study1.Rmd"}
+```{r, child="study1alt.Rmd"}
 ```
 
-```{r, child="study2.Rmd"}
+
+```{r, child="study2alt.Rmd"}
 ```
 
+<!--
 ```{r, child="study3.Rmd"}
 ```
 
@@ -30,6 +32,7 @@ Describe briefly the method...
 
 ```{r, child="cross-study.Rmd"}
 ```
+-->
 
 # Conclusion
 

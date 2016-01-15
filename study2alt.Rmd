@@ -1,0 +1,687 @@
+---
+title: "Study 1 Alternative Analysis"
+author: "Luis P."
+date: "January 15, 2016"
+output: html_document
+---
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+library(ggplot2)
+# We load the useful scripts and packages needed throughout the report
+source("./lib/rollingWindows.R")
+source("./lib/loadIndex.R")
+source("./lib/extremeLoadExtraction.R")
+source("./lib/aggregateEpisodeData.R")
+source("./lib/multiplot.R")
+source("./lib/outliers.R")
+
+rootdir <- getwd()
+setwd(paste(rootdir,"/data/study2",sep=""))
+
+# We do the preprocessing, which will generate a Rda file with the 10s
+# window data, and will return the name of the file
+
+sessions <-  c("DELANA-Session1-Expert-eyetracking","DELANA-Session2-Expert-eyetracking","DELANA-Session3-Novice-eyetracking")
+
+cleandatafile <- "study2ProcessedData.Rda"
+
+totaldata <- get(load(cleandatafile))
+
+# We crop outliers in the saccade speed. They tend to throw off the HMM and PCA calculations
+#countOutliers(totaldata$value.Sac,coef = 5, method="iqr") # 5xinter-quartile range
+totaldata$value.Sac <- replaceOutliers(totaldata$value.Sac,valueNA = F,coef = 5, method="iqr")
+
+loaddata <- calculateCoarseFineLoadIndex(totaldata,3:6,normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+#str(loaddata)
+
+# We assume that the teacher load in the expert sessions is lower than in the novice sessions
+loaddata$TeacherLoad <- ifelse(loaddata$session==sessions[3],1,0)
+# table(loaddata$TeacherLoad,loaddata$Activity)
+# table(loaddata$TeacherLoad,loaddata$Social)
+# table(loaddata$TeacherLoad,loaddata$Focus)
+dataexpert <- loaddata[loaddata$TeacherLoad==0,]
+datanovice <- loaddata[loaddata$TeacherLoad==1,]
+
+names(loaddata)
+```
+
+# Exploratory analysis of the physiological signals
+
+... always taking into account the normalized values, not the raw ones!
+
+## Correlations
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(corrplot)
+M <- cor(loaddata[, c(14,17,20,23)])
+corrplot.mixed(M,main="Correlations, normalized values")
+
+#... and for the two teachers separately
+M <- cor(dataexpert[, c(14,17,20,23)])
+corrplot.mixed(M,main="Correlations, Expert, normalized values")
+
+M <- cor(datanovice[, c(14,17,20,23)])
+corrplot.mixed(M,main="Correlations, Novice, normalized values")
+
+
+```
+
+We see correlations are far from perfect, which is to be expected, given that different metrics can catch different parts of the multitask activity
+
+Also, we observe that the two teachers have very different correlations among metrics, hence pointing at that PCA dimensions, models, etc. should be calculated separately.
+
+
+## PCA
+
+### Expert teacher
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(dataexpert[, c(14,17,20,23)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, Normalized data, Expert, dims 1/2")
+dataexpert$Dim1Norm = res.pca.norm$ind$coord[,1]
+dataexpert$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(data, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddata, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddata, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(dataexpert[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(dataexpert$CoarseLoad),FUN=mean)
+
+```
+
+It is slightly different, and the load index correlates much better with the second PCA dimension
+
+### Novice teacher
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(datanovice[, c(14,17,20,23)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, Normalized data, Expert, dims 1/2")
+datanovice$Dim1Norm = res.pca.norm$ind$coord[,1]
+datanovice$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(data, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddata, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddata, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(datanovice[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(datanovice$CoarseLoad),FUN=mean)
+
+```
+
+In this case the main PCA dimension and the Load index can be quite different (again, the load index correlates much better with the second PCA dimension)
+
+
+
+# How each signal behaves with respect to the behavioral codes
+
+## Expert teacher
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+library(gplots)
+
+behdata <- dataexpert[!is.na(dataexpert$Activity) & !is.na(dataexpert$Social) & !is.na(dataexpert$Focus),]
+behdata <- behdata[behdata$Social!="GRP",]
+behdata$Social <- factor(behdata$Social)
+behdata <- behdata[behdata$Focus!="BAK",]
+behdata <- behdata[behdata$Focus!="SCOMP",]
+behdata <- behdata[behdata$Focus!="TAB",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata$Focus <- factor(behdata$Focus)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Mean.norm))+geom_density()
+
+plotmeans(behdata$value.Mean.norm~behdata$Activity)
+plotmeans(behdata$value.Mean.norm~behdata$Social)
+plotmeans(behdata$value.Mean.norm~behdata$Focus)
+
+```
+
+The mean pupil diameter could be affected by the high luminosity of the laptop or the projector, but a linear model tells us that the IND still have an influence to the pupil mean, even substracting the influence of the laptop.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.SD.norm))+geom_density()
+
+plotmeans(behdata$value.SD.norm~behdata$Activity)
+plotmeans(behdata$value.SD.norm~behdata$Social)
+plotmeans(behdata$value.SD.norm~behdata$Focus)
+
+```
+
+AGain, the SD pupil diameter could be affected by the high luminosity of the laptop but the linear model tells us that the trends are similar even taking out the influence of other dimensions
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.SD.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Sac.norm))+geom_density()
+
+plotmeans(behdata$value.Sac.norm~behdata$Activity)
+plotmeans(behdata$value.Sac.norm~behdata$Social)
+plotmeans(behdata$value.Sac.norm~behdata$Focus)
+
+```
+
+The Saccade Speed seems to have a peculiar bimodal distribution (probably due to the sampling done of the session). The saccade speed differences in the social level (C is higher) could be explained physically. The linear model tells us that even taking that factor out, the other trends are still similar to the averages above
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.Sac.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Fix.norm))+geom_density()
+
+plotmeans(behdata$value.Fix.norm~behdata$Activity)
+plotmeans(behdata$value.Fix.norm~behdata$Social)
+plotmeans(behdata$value.Fix.norm~behdata$Focus)
+
+```
+
+(Here I cannot see any specific trend that can be explained in purely physical terms)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- glm(value.Fix.norm ~ Activity + Social + Focus, family="poisson", data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
+
+## Novice teacher
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+library(gplots)
+
+behdata <- datanovice[!is.na(datanovice$Activity) & !is.na(datanovice$Social) & !is.na(datanovice$Focus),]
+behdata <- behdata[behdata$Activity!="QUEST",]
+behdata$Activity <- factor(behdata$Activity)
+behdata <- behdata[behdata$Social!="GRP",]
+behdata$Social <- factor(behdata$Social)
+behdata <- behdata[behdata$Focus!="BAK",]
+behdata <- behdata[behdata$Focus!="PROJ",]
+behdata <- behdata[behdata$Focus!="TAB",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata <- behdata[behdata$Focus!="WHIT",]
+behdata$Focus <- factor(behdata$Focus)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Mean.norm))+geom_density()
+
+plotmeans(behdata$value.Mean.norm~behdata$Activity)
+plotmeans(behdata$value.Mean.norm~behdata$Social)
+plotmeans(behdata$value.Mean.norm~behdata$Focus)
+
+```
+
+The mean pupil diameter could be affected by the high luminosity of the laptop or the projector, but a linear model tells us that the IND still have a negative trend to the pupil mean, even after taking out the focus (but it is much less significant, admittedly)
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+
+lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.SD.norm))+geom_density()
+
+plotmeans(behdata$value.SD.norm~behdata$Activity)
+plotmeans(behdata$value.SD.norm~behdata$Social)
+plotmeans(behdata$value.SD.norm~behdata$Focus)
+
+```
+
+AGain, the SD pupil diameter could be affected by the high luminosity of the laptop but the linear model tells us that the trends are similar even taking out the influence of other dimensions
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.SD.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Sac.norm))+geom_density()
+
+plotmeans(behdata$value.Sac.norm~behdata$Activity)
+plotmeans(behdata$value.Sac.norm~behdata$Social)
+plotmeans(behdata$value.Sac.norm~behdata$Focus)
+
+```
+
+The Saccade Speed seems to have a peculiar bimodal distribution (probably due to the sampling done of the session). The saccade speed differences in the social level (C is higher) could be explained physically. The linear model tells us that the social factor is not so important, when we take out the others.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.Sac.norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(behdata, aes(x=value.Fix.norm))+geom_density()
+
+plotmeans(behdata$value.Fix.norm~behdata$Activity)
+plotmeans(behdata$value.Fix.norm~behdata$Social)
+plotmeans(behdata$value.Fix.norm~behdata$Focus)
+
+```
+
+(Here I cannot see any specific trend that can be explained in purely physical terms)
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- glm(value.Fix.norm ~ Activity + Social + Focus, family="poisson", data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
+
+
+# Descriptive behavioral patterns
+
+We coded the parts of the session where we are most confident that load is high (Coarse Load Index=4) or low (Coarse Load Index=4). What are the observed trends in terms of teacher Activity, Social plane and Focus of the gaze?
+
+## Expert
+
+
+### In terms of Load Index
+
+
+We train a logistic regression model that tries to predict whether a coded episode was of the high or low load kind, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(aod)
+library(ggplot2)
+
+behdata <- dataexpert[!is.na(dataexpert$Activity) & !is.na(dataexpert$Social) & !is.na(dataexpert$Focus),]
+behdata <- behdata[behdata$Social!="GRP",]
+behdata$Social <- factor(behdata$Social)
+behdata <- behdata[behdata$Focus!="BAK",]
+behdata <- behdata[behdata$Focus!="SCOMP",]
+behdata <- behdata[behdata$Focus!="TAB",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata$Focus <- factor(behdata$Focus)
+
+#table(behdata$CoarseLoad)
+
+behdata$CoarseType <- ifelse(behdata$CoarseLoad>2,1,0)
+behdata$CoarseType <- ifelse(behdata$CoarseLoad==2,NA,behdata$CoarseType)
+# table(behdata$CoarseType)
+table(behdata$CoarseType,behdata$Activity)
+table(behdata$CoarseType,behdata$Social)
+table(behdata$CoarseType,behdata$Focus)
+
+
+logit1 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+```
+
+We see that in this case the model is much less predictive (pseudo Rsquared=0.12 indicating that trends in the data are much less clear) -- maybe a sign of less load in general (even if the indices catch only the differences **within** the session).
+
+In this case, only the Focus is clearly connected with the load, with PROJ, TCOMP being less load than the others.
+
+
+### In terms of PCA-extracted Index
+
+The distribution of coded values goes continuouosly along the dimension, so we do a linear model in this case, that tries to predict the PCA dimension, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+#ggplot(dataexpert,aes(x=Dim1Norm))+geom_density()
+ggplot(behdata,aes(x=Dim1Norm))+geom_density()
+# The distribution of coded values goes continuouosly along the dimension, so we do a linear model
+
+
+lm1 <- lm(Dim1Norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+
+```
+
+We see that, again, all three dimensions contribute significantly to the predictive power of the model (which is better than in the coarse load case, but still quite low, adjusted Rsquared=0.22)
+
+Again, we see that only TCOMP tends to be especially associated with low load, and IND to a lesser extent.
+
+
+## Novice
+
+
+### In terms of Load Index
+
+
+We train a logistic regression model that tries to predict whether a coded episode was of the high or low load kind, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(aod)
+library(ggplot2)
+
+behdata <- datanovice[!is.na(datanovice$Activity) & !is.na(datanovice$Social) & !is.na(datanovice$Focus),]
+behdata <- behdata[behdata$Social!="GRP",]
+behdata$Social <- factor(behdata$Social)
+behdata <- behdata[behdata$Focus!="BAK",]
+behdata <- behdata[behdata$Focus!="SCOMP",]
+behdata <- behdata[behdata$Focus!="TAB",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata$Focus <- factor(behdata$Focus)
+
+#table(behdata$CoarseLoad)
+
+behdata$CoarseType <- ifelse(behdata$CoarseLoad>2,1,0)
+behdata$CoarseType <- ifelse(behdata$CoarseLoad==2,NA,behdata$CoarseType)
+# table(behdata$CoarseType)
+table(behdata$CoarseType,behdata$Activity)
+table(behdata$CoarseType,behdata$Social)
+table(behdata$CoarseType,behdata$Focus)
+
+
+logit1 <- glm(CoarseType ~ Activity + Social + Focus, data = behdata, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+```
+
+We see that in this case the model is much more predictive than for the expert (pseudo Rsquared=0.38 indicating that trends in the data are much more clear). It looks like EXP tends to be higher load and TCOMP lower load -- But the table is too sparse to say for sure!
+
+
+
+
+### In terms of PCA-extracted Index
+
+The distribution of coded values goes continuouosly along the dimension, so we do a linear model in this case, that tries to predict the PCA dimension, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+#ggplot(datanovice,aes(x=Dim1Norm))+geom_density()
+ggplot(behdata,aes(x=Dim1Norm))+geom_density()
+# The distribution of coded values goes continuouosly along the dimension, so we do a linear model
+
+
+lm1 <- lm(Dim1Norm ~ Activity + Social + Focus, data = behdata)
+summary(lm1)
+anova(lm1)
+
+```
+
+In this case, we do not have enough data for a reliable model, and the Rsquared is almost 0. The most noticeable trends are EXP, CLS, FAC as high load
+
+
+# Using the "experimental condition" (teacher expertise) to predict the different load indices... is there any difference?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+behdata <- dataexpert[!is.na(dataexpert$Activity) & !is.na(dataexpert$Social) & !is.na(dataexpert$Focus),]
+behdata <- behdata[behdata$Social!="GRP",]
+behdata$Social <- factor(behdata$Social)
+behdata <- behdata[behdata$Focus!="BAK",]
+behdata <- behdata[behdata$Focus!="TAB",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata$Focus <- factor(behdata$Focus)
+
+#table(behdata$CoarseLoad)
+
+data <- behdata
+
+
+
+behdata <- datanovice[!is.na(datanovice$Activity) & !is.na(datanovice$Social) & !is.na(datanovice$Focus),]
+behdata <- behdata[behdata$Social!="GRP",]
+behdata$Social <- factor(behdata$Social)
+behdata <- behdata[behdata$Focus!="BAK",]
+behdata <- behdata[behdata$Focus!="TAB",]
+behdata <- behdata[behdata$Focus!="TEA",]
+behdata$Focus <- factor(behdata$Focus)
+
+data <- rbind(data,behdata)
+
+data$CoarseType <- ifelse(data$CoarseLoad>2,1,0)
+data$CoarseType <- ifelse(data$CoarseLoad==2,NA,data$CoarseType)
+
+```
+
+I see two ways of doing it: 1) logistic regression to predict teacher using the load index as parameter (is it significant and positively correlated?);
+2) linear model using the teacher as parameter, substracting the others and doing a t test!
+
+## Method 1: Logistic regression (check with Lukasz)
+
+### Load Index
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+logit1 <- glm(TeacherLoad ~ Activity + Social + Focus + FineLoad, data = data, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+logit1 <- glm(TeacherLoad ~ Activity + Social + Focus + CoarseType, data = data, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+```
+
+With this method, it looks like the FineLoad (or even CoarseType) is a good predictor of what teacher it is (whether it is higher or lower load).
+
+
+### PCA Load Index
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+logit1 <- glm(TeacherLoad ~ Activity + Social + Focus + Dim1Norm, data = data, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+```
+
+With this method, it looks like the Dim1 is a much better predictor of what teacher it is  (whether it is higher or lower load).
+
+
+
+### Try individual metrics too??
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+logit1 <- glm(TeacherLoad ~ Activity + Social + Focus + value.Mean.norm, data = data, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+```
+
+With this method, we see that the pupil mean is actually a bad predictor (or a predictor in the opposite direction, not significant!)
+
+
+## Method 2: Linear model (Ask Lukasz: should we build the model WITH or WITHOUT the experimental condition? it seems like WITH it, it is too easy!)
+
+
+
+
+### Load Index
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+library(dummies)
+
+
+
+lm1 <- lm(FineLoad ~ Activity + Social + Focus + TeacherLoad, data = data)
+summary(lm1)
+anova(lm1)
+
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+
+predmodel <- function(model,data,cols){
+    preds <- numeric()
+    for(row in 1:nrow(data)){
+        sum <- model$coefficients["(Intercept)"]
+        for(i in cols){
+           coef <- model$coefficients[names(data[row,])[i]]
+           if(!is.na(coef)){
+             sum <- sum+(coef*data[row,i])   
+           }
+        }
+        preds[row] <- sum        
+    }
+    
+    preds
+}
+
+data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
+
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+
+
+lm1 <- lm(CoarseLoad ~ Activity + Social + Focus + TeacherLoad, data = data)
+summary(lm1)
+anova(lm1)
+
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,33:44)
+
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
+# lm1 <- lm(FineLoad ~ Activity + Social + Focus, data = data)
+# summary(lm1)
+# anova(lm1)
+# data2 <- data
+# data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+# data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
+# t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+# ggplot(data2, aes(x=resid))+geom_density()
+
+
+
+
+```
+
+With this method, it looks like TeacherLoad is an important contribution to the model... the t-test shows us that the difference in FineLoad (and even in CoarseLoad) once we remove the influence of Activity, Social and Focus, IS significant for both cases.
+
+### PCA Load Index
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+lm1 <- lm(Dim1Norm ~ Activity + Social + Focus + TeacherLoad, data = data)
+summary(lm1)
+anova(lm1)
+
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+
+data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,33:44)
+
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+
+# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
+# lm1 <- lm(Dim1Norm ~ Activity + Social + Focus, data = data)
+# summary(lm1)
+# anova(lm1)
+# data2 <- data
+# data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+# data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,33:44)
+# t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+# ggplot(data2, aes(x=resid))+geom_density()
+```
+
+With this method, it looks like TeacherLoad is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social and Focus, IS significant between the cases with expert and novice teacher.
+
+### TODO: Try individual metrics too??
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus + TeacherLoad, data = data)
+summary(lm1)
+anova(lm1)
+
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+
+data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,33:44)
+
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significantly different!
+# lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus, data = data)
+# summary(lm1)
+# anova(lm1)
+# data2 <- data
+# data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+# data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,33:44)
+# t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+# ggplot(data2, aes(x=resid))+geom_density()
+```
+
+For example, for pupil mean, there is no significant difference between the expert and the novice teacher. There is added value in the multi-measure metrics!

@@ -24,15 +24,15 @@ str(loaddata)
 
 ### Distribution of values
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=FALSE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=FALSE}
 library(ggplot2)
 
-#ggplot(data=loaddata, aes(x=loaddata$value.Mean))+geom_density()
-#ggplot(data=loaddata, aes(x=loaddata$value.SD))+geom_density()
-#ggplot(data=loaddata, aes(x=loaddata$value.Sac))+geom_density()
-#ggplot(data=loaddata, aes(x=loaddata$value.Fix))+geom_density()
-#ggplot(data=loaddata, aes(x=loaddata$value.Theta))+geom_density()
-#ggplot(data=loaddata, aes(x=loaddata$value.Jerk.Mean))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Mean))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.SD))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Sac))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Fix))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Theta))+geom_density()
+ggplot(data=loaddata, aes(x=loaddata$value.Jerk.Mean))+geom_density()
 
 ggplot(data=loaddata, aes(x=loaddata$value.Mean.norm))+geom_density()
 ggplot(data=loaddata, aes(x=loaddata$value.SD.norm))+geom_density()
@@ -47,10 +47,10 @@ ggplot(data=loaddata, aes(x=loaddata$value.Jerk.Mean.norm))+geom_density()
 
 ### Correlations between load metrics
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 library(corrplot)
-#M <- cor(loaddata[, c(3:6,11:12)])
-#corrplot.mixed(M,main="Correlations, raw values")
+M <- cor(loaddata[, c(3:6,11:12)])
+corrplot.mixed(M,main="Correlations, raw values")
 M <- cor(loaddata[, c(14,17,20,23,29,35)])
 corrplot.mixed(M,main="Correlations, normalized values")
 ```
@@ -59,7 +59,7 @@ corrplot.mixed(M,main="Correlations, normalized values")
 
 ### PCA
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 library(FactoMineR)
 
 #Overall for the four sessions
@@ -97,7 +97,7 @@ Components (normalized data):
 
 ### HMM
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 library(depmixS4)
 library(ggplot2)
 
@@ -138,6 +138,23 @@ loaddata$MMstate6 <- esttrans[,1]
 table(loaddata$session,loaddata$MMstate6)
 plot(1:nrow(loaddata), esttrans[,1], type='p', col=as.factor(loaddata$session), main=paste('Estimated state',numstates))
 
+library(diagram)
+tm <- round(t(matrix(getpars(f)[7:42],nrow = 6,ncol = 6)),digits = 3)
+plotmat(tm, 
+        lwd = 1, box.lwd = 2, 
+        cex.txt = 0.8, 
+        box.size = 0.1, 
+        box.type = "circle", 
+        box.prop = 0.5,
+        box.col = "light yellow",
+        arr.length=.1,
+        arr.width=.1,
+        arr.lwd = 30*tm,
+        self.cex = .4,
+        self.shifty = -.01,
+        self.shiftx = .13,
+        self.lwd = diag(30*tm),
+        main = "")
 ```
 
 The load states seem to be the following:
@@ -154,8 +171,12 @@ The load states seem to be the following:
 
 ### Separate load-related metrics
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=15}
 library(gplots)
+
+loaddata$ExpSession <- as.factor(paste(loaddata$session,loaddata$value.Experimental))
+plotmeans(value.Mean~ExpSession,data=loaddata,connect=F) # The metric behaves as expected...
+plotmeans(value.Mean.norm~ExpSession,data=loaddata,connect=F) # The metric behaves as expected...
 
 # Pupil mean
 plotmeans(value.Mean~value.Experimental,data=loaddata,connect=F) # The metric behaves as expected...
@@ -199,11 +220,12 @@ However, we also find that the EEG Theta (normalized or not), and normalized Pup
 
 **Q**: What do we make out of this? That only some metrics are good? that the goodness depends on the task at hand (this would have to be checked against the behavioral variables -- see below)?
 
+
 ### Multi-metric load indices. Is it better than single ones (i.e., does it distinguish experimental condition)? 
 
 #### 4 Eyetracking
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 loaddataET <- calculateCoarseFineLoadIndex(loaddata,c(3:6),normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
 plotmeans(CoarseLoad ~ value.Experimental, data=loaddataET, connect=F) # Does not behave as expected
@@ -214,11 +236,11 @@ t.test(loaddataET[loaddataET$value.Experimental=="C1","FineLoad"],loaddataET[loa
 ```
 
 We see that the eyetrack-based load index does not catch the expectd difference in load!
-
+    
 #### 4 Eyetracking + Theta
-
-
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+    
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 loaddataETT <- calculateCoarseFineLoadIndex(loaddata,c(3:6),normalize=T, inversecols = 11) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
 plotmeans(CoarseLoad ~ value.Experimental, data=loaddataETT, connect=F) # Does not behave as expected
@@ -229,11 +251,11 @@ t.test(loaddataETT[loaddataETT$value.Experimental=="C1","FineLoad"],loaddataETT[
 ```
 
 Adding the EGG does not help either in catching the expected difference in load!
-
+    
 #### 4 Eyetracking + Theta + Acc Jerk
-
-
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+    
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 loaddataETTA <- calculateCoarseFineLoadIndex(loaddata,c(3:6,12),normalize=T, inversecols = 11) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
 plotmeans(CoarseLoad ~ value.Experimental, data=loaddataETTA, connect=F) # Does not behave as expected
@@ -244,13 +266,13 @@ t.test(loaddataETTA[loaddataETTA$value.Experimental=="C1","FineLoad"],loaddataET
 ```
 
 Adding the physical load does not help either in catching the expected difference in load!
-
-This means that, even if some of the measures do catch the difference, others do not (or do it opposingly, hence canceling the effect of the "good metrics")
+    
+    This means that, even if some of the measures do catch the difference, others do not (or do it opposingly, hence canceling the effect of the "good metrics")
 
 
 ### PCA dimensions
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 #Raw dimensions
 plotmeans(Dim1 ~ value.Experimental, data=loaddata, connect=F) # Behaves as expected
 t.test(loaddata[loaddata$value.Experimental=="C1","Dim1"],loaddata[loaddata$value.Experimental=="C2","Dim1"])$p.value #... and the difference is significant!
@@ -274,11 +296,11 @@ t.test(loaddata[loaddata$value.Experimental=="C1","Dim4Norm"],loaddata[loaddata$
 ```
 
 Interestingly, in both normalized and raw data, the first dimension behaves as expected, and the differences are significant!
-
-
+    
+    
 ### HMMs
-
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 expdata <- loaddata[loaddata$value.Experimental=="C1" | loaddata$value.Experimental=="C2",]
 expdata$value.Experimental <- factor(expdata$value.Experimental)
@@ -297,27 +319,32 @@ The 6-state HMMs do not catch significant differences in the experimental condit
 
 We can try to discern the effect of the Activity and Social level on the different metrics, and see whether, after substracting those effects, the metric still catches the difference between C1 and C2
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 library(aod)
 
 # Orchestration patterns
-lmMn <- lm(value.Mean ~ value.Activity+value.Social, data=loaddata)
-summary(lmMn) # TDT, EXP, CLS are high load, MON, REP, GRP are low load
-anova(lmMn)
+# lmMn <- lm(value.Mean ~ value.Activity+value.Social, data=loaddata)
+# summary(lmMn) # TDT, EXP, CLS are high load, MON, REP, GRP are low load
+# anova(lmMn)
 lmMnN <- lm(value.Mean.norm ~ value.Activity+value.Social, data=loaddata)
 summary(lmMnN) # TDT, CLS are high load, MON, REP, GRP are low load
 anova(lmMnN)
 # Models based on all the data -- influence of the experimental condition?
-lmMean <- lm(value.Mean ~ value.Activity+value.Social+value.Experimental, data=loaddata)
-summary(lmMean) # C1 and C2 have coefficients opposite as expected...
-anova(lmMean)
-l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
-wald.test(b = coef(lmMean), Sigma = vcov(lmMean), L = l)  # ... And the difference is significant!
+# lmMean <- lm(value.Mean ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+# summary(lmMean) # C1 and C2 have coefficients opposite as expected...
+# anova(lmMean)
+# l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+# wald.test(b = coef(lmMean), Sigma = vcov(lmMean), L = l)  # ... And the difference is significant!
 lmMeanNorm <- lm(value.Mean.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmMeanNorm)  # C1 and C2 have coefficients opposite as expected...
 anova(lmMeanNorm)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmMeanNorm), Sigma = vcov(lmMeanNorm), L = l)  # ... And the difference is significant!
+# Saturated model
+lmMeanNormSat <- lm(value.Mean.norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmMeanNormSat)  # C1 and C2 have coefficients opposite as expected...
+anova(lmMeanNormSat)
+
 
 ```
 
@@ -326,53 +353,65 @@ wald.test(b = coef(lmMeanNorm), Sigma = vcov(lmMeanNorm), L = l)  # ... And the 
 * **Contrasts**: In both cases, the model puts load coefficients in the wrong direction, significantly!
 
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+For the **saturated model**...
+
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmSd <- lm(value.SD ~ value.Activity+value.Social, data=loaddata)
-summary(lmSd) # QUE (maybe TDT) are high load, GRP is low load
-anova(lmSd)
+# lmSd <- lm(value.SD ~ value.Activity+value.Social, data=loaddata)
+# summary(lmSd) # QUE (maybe TDT) are high load, GRP is low load
+# anova(lmSd)
 lmSdN <- lm(value.SD.norm ~ value.Activity+value.Social, data=loaddata)
 summary(lmSdN) # QUE, CLS are high load, MON, GRP are low load
 anova(lmSdN)
 # Models based on all the data -- influence of the experimental condition?
-lmSDx <- lm(value.SD ~ value.Activity+value.Social+value.Experimental, data=loaddata)
-summary(lmSDx) # C1 and C2 have coefficients opposite as expected...
-anova(lmSDx)
-l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
-wald.test(b = coef(lmSDx), Sigma = vcov(lmSDx), L = l)  # ... And the difference is not significant
+# lmSDx <- lm(value.SD ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+# summary(lmSDx) # C1 and C2 have coefficients opposite as expected...
+# anova(lmSDx)
+# l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+# wald.test(b = coef(lmSDx), Sigma = vcov(lmSDx), L = l)  # ... And the difference is not significant
 lmSDNorm <- lm(value.SD.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmSDNorm)  # C1 and C2 have coefficients as expected
 anova(lmSDNorm)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmSDNorm), Sigma = vcov(lmSDNorm), L = l)  # ... And the difference is significant!
+# Saturated model
+lmSDNormSat <- lm(value.SD.norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmSDNormSat)  # C1 and C2 have coefficients opposite as expected...
+anova(lmSDNormSat)
 
 ```
 
 * **Pupil sd pattern**: Activity and Social are significant, QUE, TDT, CLS are high load, GRP are low load
 * **(norm) Pupil sd pattern**: Activity and Social are significant, QUE, CLS are high load, MON, GRP are low load
 * **Contrasts**: In the raw metric, the C1/C2 coefficients are not so different, but in the normalized SD metric the coefficients are as expected, and the difference is significant!
-
-
-
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+    
+For the **saturated model**...
+    
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmSc <- lm(value.Sac ~ value.Activity+value.Social, data=loaddata)
-summary(lmSc) # QUE (maybe TDT) are high load, GRP is low load
-anova(lmSc)
+# lmSc <- lm(value.Sac ~ value.Activity+value.Social, data=loaddata)
+# summary(lmSc) # QUE (maybe TDT) are high load, GRP is low load
+# anova(lmSc)
 lmScN <- lm(value.Sac.norm ~ value.Activity+value.Social, data=loaddata)
 summary(lmScN) # QUE, CLS are high load, MON, GRP are low load
 anova(lmScN)
 # Models based on all the data -- influence of the experimental condition?
-lmSac <- lm(value.Sac ~ value.Activity+value.Social+value.Experimental, data=loaddata)
-summary(lmSac) # C1 and C2 have coefficients as expected...
-anova(lmSac)
-l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
-wald.test(b = coef(lmSac), Sigma = vcov(lmSac), L = l)  # ... And the difference is significant!
+# lmSac <- lm(value.Sac ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+# summary(lmSac) # C1 and C2 have coefficients as expected...
+# anova(lmSac)
+# l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+# wald.test(b = coef(lmSac), Sigma = vcov(lmSac), L = l)  # ... And the difference is significant!
 lmSacNorm <- lm(value.Sac.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmSacNorm)  # C1 and C2 have coefficients as expected
 anova(lmSacNorm)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmSacNorm), Sigma = vcov(lmSacNorm), L = l)  # ... And the difference is significant!
+# Saturated model
+lmSacNormSat <- lm(value.Sac.norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmSacNormSat)  # C1 and C2 have coefficients as expected
+anova(lmSacNormSat)
 
 ```
 
@@ -380,52 +419,67 @@ wald.test(b = coef(lmSacNorm), Sigma = vcov(lmSacNorm), L = l)  # ... And the di
 * **(norm) Saccade Spd pattern**: Activity IS significant, and Social is NOT. TDT, EXP is high load, MON, REP are low load
 * **Contrasts**: Both in the raw and normalized Sac metric, the C1/C2 coefficients are going in the expected direction, and the difference is significant. 
 
+For the **saturated model**...
 
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmFx <- lm(value.Fix ~ value.Activity+value.Social, data=loaddata)
-summary(lmFx) #  Not significant
-anova(lmFx)
+# lmFx <- lm(value.Fix ~ value.Activity+value.Social, data=loaddata)
+# summary(lmFx) #  Not significant
+# anova(lmFx)
 lmFxN <- lm(value.Fix.norm ~ value.Activity+value.Social, data=loaddata)
 summary(lmFxN) #  Not significant
 anova(lmFxN)
 # Models based on all the data -- influence of the experimental condition?
-lmFix <- lm(value.Fix ~ value.Activity+value.Social+value.Experimental, data=loaddata)
-summary(lmFix) # C1 and C2 have coefficients opposed as expected...
-anova(lmFix)
-l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
-wald.test(b = coef(lmFix), Sigma = vcov(lmFix), L = l)  # ... And the difference is significant (barely)!
+# lmFix <- lm(value.Fix ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+# summary(lmFix) # C1 and C2 have coefficients opposed as expected...
+# anova(lmFix)
+# l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+# wald.test(b = coef(lmFix), Sigma = vcov(lmFix), L = l)  # ... And the difference is significant (barely)!
 lmFixNorm <- lm(value.Fix.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmFixNorm)  # C1 and C2 have coefficients as expected
 anova(lmFixNorm)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmFixNorm), Sigma = vcov(lmFixNorm), L = l)  # ... And the difference is significant!
+# Saturated model
+lmFixNormSat <- lm(value.Fix.norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmFixNormSat)  # C1 and C2 have coefficients as expected
+anova(lmFixNormSat)
+
+
 
 ```
 
 * **Fix pattern**: Activity or Social are NOT significant (the normalized is the same!)
 * **Contrasts**: Both in the raw and normalized Sac metric, the C1/C2 coefficients are going in the wrong direction, and the difference is significant! 
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+For the **saturated model**...
+
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmTh <- lm(value.Theta ~ value.Activity+value.Social, data=loaddata)
-summary(lmTh) #  high load,  is low load
-anova(lmTh)
+# lmTh <- lm(value.Theta ~ value.Activity+value.Social, data=loaddata)
+# summary(lmTh) #  high load,  is low load
+# anova(lmTh)
 lmThN <- lm(value.Theta.norm ~ value.Activity+value.Social, data=loaddata)
 summary(lmThN) #  are high load,  are low load
 anova(lmThN)
 # Models based on all the data -- influence of the experimental condition?
-lmTheta <- lm(value.Theta ~ value.Activity+value.Social+value.Experimental, data=loaddata)
-summary(lmTheta) # C1 and C2 have coefficients opposite as expected...
-anova(lmTheta)
-l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
-wald.test(b = coef(lmTheta), Sigma = vcov(lmTheta), L = l)  # ... And the difference is significant
+# lmTheta <- lm(value.Theta ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+# summary(lmTheta) # C1 and C2 have coefficients opposite as expected...
+# anova(lmTheta)
+# l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+# wald.test(b = coef(lmTheta), Sigma = vcov(lmTheta), L = l)  # ... And the difference is significant
 lmThetaNorm <- lm(value.Theta.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmThetaNorm)  # C1 and C2 have coefficients opposite as expected
 anova(lmThetaNorm)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmThetaNorm), Sigma = vcov(lmThetaNorm), L = l)  # ... And the difference is significant!
+# Saturated model
+lmThetaNormSat <- lm(value.Theta.norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmThetaNormSat)  # C1 and C2 have coefficients opposite as expected
+anova(lmThetaNormSat)
+
 
 ```
 
@@ -434,25 +488,32 @@ wald.test(b = coef(lmThetaNorm), Sigma = vcov(lmThetaNorm), L = l)  # ... And th
 * **Contrasts**: In the raw and in the normalized metric, the C1/C2 coefficients are going in the opposite direction, and they are significant!
 
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+For the **saturated model**...
+    
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmJ <- lm(value.Jerk.Mean ~ value.Activity+value.Social, data=loaddata)
-summary(lmJ) # MON, TDT, CLS are high load, EXP, QUE, REP, GRP is low load
-anova(lmJ)
+# lmJ <- lm(value.Jerk.Mean ~ value.Activity+value.Social, data=loaddata)
+# summary(lmJ) # MON, TDT, CLS are high load, EXP, QUE, REP, GRP is low load
+# anova(lmJ)
 lmJN <- lm(value.Jerk.Mean.norm ~ value.Activity+value.Social, data=loaddata)
 summary(lmJN) # MON, TDT, CLS are high load, EXP, QUE, REP is low load
 anova(lmJN)
 # Models based on all the data -- influence of the experimental condition?
-lmJerk <- lm(value.Jerk.Mean ~ value.Activity+value.Social+value.Experimental, data=loaddata)
-summary(lmJerk) # C1 and C2 have coefficients  as expected...
-anova(lmJerk)
-l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
-wald.test(b = coef(lmJerk), Sigma = vcov(lmJerk), L = l)  # ... And the difference is significant
+# lmJerk <- lm(value.Jerk.Mean ~ value.Activity+value.Social+value.Experimental, data=loaddata)
+# summary(lmJerk) # C1 and C2 have coefficients  as expected...
+# anova(lmJerk)
+# l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
+# wald.test(b = coef(lmJerk), Sigma = vcov(lmJerk), L = l)  # ... And the difference is significant
 lmJerkNorm <- lm(value.Jerk.Mean.norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmJerkNorm)  # C1 and C2 have coefficients as expected
 anova(lmJerkNorm)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmJerkNorm), Sigma = vcov(lmJerkNorm), L = l)  # ... And the difference is significant!
+# Saturated model
+lmJerkNormSat <- lm(value.Jerk.Mean.norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmJerkNormSat)  # C1 and C2 have coefficients as expected
+anova(lmJerkNormSat)
 
 ```
 
@@ -460,7 +521,10 @@ wald.test(b = coef(lmJerkNorm), Sigma = vcov(lmJerkNorm), L = l)  # ... And the 
 * **(norm) Acc jerk pattern**: Activity is significant, but Social is NOT. MON, TDT, CLS are high load, EXP, QUE, REP is low load
 * **Contrasts**: In the raw and in the normalized metric, the C1/C2 coefficients are going in the expected direction, and they are significant!
 
+For the **saturated model**...
 
+
+    
 So, overall, we find that some of the load metrics behave as expected by the manipulation (Acc Jerk, Sac Spd and Pupil SD - normalized), but others behave in the opposite way (Fixations, Theta, Pupil Mean)... Once we adjust for the inherent effects of Activity and Social.
 
 Also, the different metrics give different patterns of orchestration load (see the difference between the pattern from the point of view of pupil mean and pupil SD). In most of the cases, though, the CLS is higher load than GRP (significantly)
@@ -470,17 +534,21 @@ Also, the different metrics give different patterns of orchestration load (see t
 
 #### 4 Eyetracking
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmET <- lm(FineLoad ~ value.Activity+value.Social, data=loaddataET)
-summary(lmET) # MON, TDT, CLS are high load, EXP, QUE, REP, GRP is low load
-anova(lmET)
+# lmET <- lm(FineLoad ~ value.Activity+value.Social, data=loaddataET)
+# summary(lmET) # MON, TDT, CLS are high load, EXP, QUE, REP, GRP is low load
+# anova(lmET)
 # Models based on all the data -- influence of the experimental condition?
 lmETFine <- lm(FineLoad ~ value.Activity+value.Social+value.Experimental, data=loaddataET)
 summary(lmETFine) # C1 and C2 have coefficients  as expected...
 anova(lmETFine)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmETFine), Sigma = vcov(lmETFine), L = l)  # ... And the difference is NOT significant
+# Saturated model
+lmETFineSat <- lm(FineLoad ~ value.Activity*value.Social*value.Experimental, data=loaddataET)
+summary(lmETFineSat) # C1 and C2 have coefficients  as expected...
+anova(lmETFineSat)
 
 ```
 
@@ -488,21 +556,29 @@ The general **orchestration patterns** with a load index based on the 4 ET metri
 
 Once we correct by Activity and Social, there is no significant difference in the values of FineLoad between C1/C2 conditions.
 
+For the **saturated model**...
+
 
 
 #### 4 Eyetracking + Theta
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmETT <- lm(FineLoad ~ value.Activity+value.Social, data=loaddataETT)
-summary(lmETT) 
-anova(lmETT)
+# lmETT <- lm(FineLoad ~ value.Activity+value.Social, data=loaddataETT)
+# summary(lmETT) 
+# anova(lmETT)
 # Models based on all the data -- influence of the experimental condition?
 lmETTFine <- lm(FineLoad ~ value.Activity+value.Social+value.Experimental, data=loaddataETT)
 summary(lmETTFine) # C1 and C2 have coefficients opposite as expected...
 anova(lmETTFine)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmETTFine), Sigma = vcov(lmETTFine), L = l)  # ... And the difference is NOT significant
+# Saturated model
+lmETTFineSat <- lm(FineLoad ~ value.Activity*value.Social*value.Experimental, data=loaddataETT)
+summary(lmETTFineSat) # C1 and C2 have coefficients opposite as expected...
+anova(lmETTFineSat)
+
+
 
 ```
 
@@ -510,21 +586,26 @@ The general **orchestration patterns** with a load index based on the ET+EEG met
 
 Once we correct by Activity and Social, there is an opposite as expected trend in FineLoad between C1/C2 conditions, but it is not significant.
 
+For the **saturated model**...
 
 
 #### 4 Eyetracking + Theta + Acc Jerk
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Orchestration patterns
-lmETTA <- lm(FineLoad ~ value.Activity+value.Social, data=loaddataETTA)
-summary(lmETTA) 
-anova(lmETTA)
+# lmETTA <- lm(FineLoad ~ value.Activity+value.Social, data=loaddataETTA)
+# summary(lmETTA) 
+# anova(lmETTA)
 # Models based on all the data -- influence of the experimental condition?
 lmETTAFine <- lm(FineLoad ~ value.Activity+value.Social+value.Experimental, data=loaddataETTA)
 summary(lmETTAFine) # C1 and C2 have coefficients as expected...
 anova(lmETTAFine)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmETTAFine), Sigma = vcov(lmETTAFine), L = l)  # ... And the difference is NOT significant
+# Saturated model
+lmETTAFineSat <- lm(FineLoad ~ value.Activity*value.Social*value.Experimental, data=loaddataETTA)
+summary(lmETTAFineSat) # C1 and C2 have coefficients as expected...
+anova(lmETTAFineSat)
 
 ```
 
@@ -532,23 +613,28 @@ The general **orchestration patterns** with a load index based on the ET+EEG+ACC
 
 Once we correct by Activity and Social, there is a difference in FineLoad between C1/C2 conditions (in the right direction), but it is not significant.
 
+For the **saturated model**...
+
 
 ### PCA dimensions
 
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Raw data PCA
 # Orchestration patterns
-lmPCA <- lm(Dim1 ~ value.Activity+value.Social, data=loaddata)
-summary(lmPCA) #  are high load,   is low load
-anova(lmPCA)
+# lmPCA <- lm(Dim1 ~ value.Activity+value.Social, data=loaddata)
+# summary(lmPCA) #  are high load,   is low load
+# anova(lmPCA)
 # Models based on all the data -- influence of the experimental condition?
 lmPCAx <- lm(Dim1 ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmPCAx) # C1 and C2 have coefficients  as expected...
 anova(lmPCAx)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmPCAx), Sigma = vcov(lmPCAx), L = l)  # ... And the difference is  significant
-
+# Saturated model
+lmPCAxSat <- lm(Dim1 ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmPCAxSat) # C1 and C2 have coefficients  as expected...
+anova(lmPCAxSat)
 
 ```
 
@@ -557,19 +643,22 @@ The general **orchestration patterns** with load defined by the first PCA compon
 Once we correct by Activity and Social, there is a difference in the 1st PCA component between C1/C2 conditions (in the right direction) and it IS significant.
 
 
-
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Normalized data PCA
 # Orchestration patterns
-lmPCA <- lm(Dim1Norm ~ value.Activity+value.Social, data=loaddata)
-summary(lmPCA) #  are high load,   is low load
-anova(lmPCA)
+# lmPCA <- lm(Dim1Norm ~ value.Activity+value.Social, data=loaddata)
+# summary(lmPCA) #  are high load,   is low load
+# anova(lmPCA)
 # Models based on all the data -- influence of the experimental condition?
 lmPCAx <- lm(Dim1Norm ~ value.Activity+value.Social+value.Experimental, data=loaddata)
 summary(lmPCAx) # C1 and C2 have coefficients  as expected...
 anova(lmPCAx)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmPCAx), Sigma = vcov(lmPCAx), L = l)  # ... And the difference is  significant
+# Saturated model
+lmPCAxSat <- lm(Dim1Norm ~ value.Activity*value.Social*value.Experimental, data=loaddata)
+summary(lmPCAxSat) # C1 and C2 have coefficients  as expected...
+anova(lmPCAxSat)
 
 
 ```
@@ -579,9 +668,14 @@ The general **orchestration patterns** with load defined by the first PCA compon
 Once we correct by Activity and Social, there is a difference in the 1st PCA component between C1/C2 conditions (in the right direction) IS significant.
 
 
-**Would a PCA of only the ET data catch the difference??**
+For the **saturated model**...
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+
+
+
+**Would a PCA of only the ET data catch the difference??**
+    
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 # Raw data PCA
 res.pca = PCA(loaddataET[, c(3:6)], scale.unit=TRUE, ncp=5, graph=F)
 plot.PCA(res.pca, axes=c(1, 2), choix="var", title="Raw ET data, dims 1/2")
@@ -600,26 +694,34 @@ loaddataET$Dim3Norm = res.pca.norm$ind$coord[,3]
 loaddataET$Dim4Norm = res.pca.norm$ind$coord[,4]
 
 # Orchestration patterns
-lmPCA <- lm(Dim1 ~ value.Activity+value.Social, data=loaddataET)
-summary(lmPCA) #  are high load,   is low load
-anova(lmPCA)
+# lmPCA <- lm(Dim1 ~ value.Activity+value.Social, data=loaddataET)
+# summary(lmPCA) #  are high load,   is low load
+# anova(lmPCA)
 # Models based on all the data -- influence of the experimental condition?
 lmPCAx <- lm(Dim1 ~ value.Activity+value.Social+value.Experimental, data=loaddataET)
 summary(lmPCAx) # C1 and C2 have coefficients  as expected...
 anova(lmPCAx)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmPCAx), Sigma = vcov(lmPCAx), L = l)  # ... And the difference is  significant
+# Saturated model
+lmPCAx <- lm(Dim1 ~ value.Activity*value.Social*value.Experimental, data=loaddataET)
+summary(lmPCAx) # C1 and C2 have coefficients  as expected...
+anova(lmPCAx)
 
 # Orchestration patterns
-lmPCA <- lm(Dim1Norm ~ value.Activity+value.Social, data=loaddataET)
-summary(lmPCA) #  are high load,   is low load
-anova(lmPCA)
+# lmPCA <- lm(Dim1Norm ~ value.Activity+value.Social, data=loaddataET)
+# summary(lmPCA) #  are high load,   is low load
+# anova(lmPCA)
 # Models based on all the data -- influence of the experimental condition?
 lmPCAx <- lm(Dim1Norm ~ value.Activity+value.Social+value.Experimental, data=loaddataET)
 summary(lmPCAx) # C1 and C2 have coefficients  as expected...
 anova(lmPCAx)
 l <- cbind(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1)
 wald.test(b = coef(lmPCAx), Sigma = vcov(lmPCAx), L = l)  # ... And the difference is  significant
+# Saturated model
+lmPCAx <- lm(Dim1Norm ~ value.Activity*value.Social*value.Experimental, data=loaddataET)
+summary(lmPCAx) # C1 and C2 have coefficients  as expected...
+anova(lmPCAx)
 
 
 ```
@@ -631,11 +733,15 @@ The "first PCA component load" patterns for the raw PCA are CLS, QUE as high loa
 Oddly, the "first PCA component load" patterns for the normalized PCA are similar in terms of Activity, but OPPOSITE in the social plane (GRP is higher load) -- but given that in the normalized the pupil mean goes opposite to the main component, it is not so rare.
 
 
+For the **saturated model**...
+
+
+
 
 ### HMMs
 
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=5}
 
 tabHmmAct <- table(loaddata$MMstate6,loaddata$value.Activity)
 tabHmmAct
@@ -655,10 +761,19 @@ chisq.test(tabHmmExp)$residuals
 ```
 
 We can see patterns of HMM states for the different Activity and Social planes, e.g.: 
-
+    
 * TDT has significantly more states 5 (Mid CL, mid physical) and 6 (Low CL (PD and EEG), Low physical) and significantly less states 3 (Low CL (except EEG), Low physical) and 4 (High CL (PD and EEG), Mid physical)
 * CLS has significantly more states 1 (High CL (except EEG), High physical), states 5 (Mid CL, mid physical) and 6 (Low CL (PD and EEG), Low physical) and less states 3 (Low CL (except EEG), Low physical) and 4 (High CL (PD and EEG), Mid physical)
 
 
 
 HMMs distribution across experimental conditions is not significantly different.
+
+
+## Conclusions for measuring orchestration load
+
+...
+
+## Classroom usability insights from this study
+
+...

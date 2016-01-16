@@ -94,6 +94,25 @@ Components (normalized data):
 3. Acc Jerk vs. Theta-based and Fixations
 4. Fixations and Acc Jerk
 
+### t-SNE dimensionality reduction
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(tsne)
+tSNE.norm <- tsne(loaddata[, c(14,17,20,23,29,35)])
+
+loaddata$tsne1 <- tSNE.norm[,1]
+loaddata$tsne2 <- tSNE.norm[,2]
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=CoarseLoad))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(value.Activity)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(value.Social)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(value.Experimental)))+geom_point()
+
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=Dim1Norm))+geom_point()+ scale_colour_gradient2(low="#22FF00", mid="white", high="#FF0000", midpoint=median(loaddata$Dim1Norm)) + theme(panel.grid=element_blank(), panel.background=element_rect(fill="black"))
+
+
+```
+
+
 
 ### HMM
 

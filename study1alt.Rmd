@@ -79,6 +79,26 @@ aggregate(loaddata[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(loaddata$CoarseL
 
 It is slightly different, and the load index correlates much better with the second PCA dimension
 
+## t-SNE
+
+Alternative to PCA for dimensionality reduction, to better see clusters in the data...
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(tsne)
+tSNE.norm <- tsne(loaddata[, c(13,16,19,22)])
+
+loaddata$tsne1 <- tSNE.norm[,1]
+loaddata$tsne2 <- tSNE.norm[,2]
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(CoarseLoad)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(Activity)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(Social)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(Focus)))+geom_point()
+
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=Dim1Norm))+geom_point()+ scale_colour_gradient2(low="#22FF00", mid="white", high="#FF0000", midpoint=median(loaddata$Dim1Norm)) + theme(panel.grid=element_blank(), panel.background=element_rect(fill="black"))
+
+
+```
+
 # How each signal behaves with respect to the behavioral codes
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}

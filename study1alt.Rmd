@@ -81,9 +81,9 @@ It is slightly different, and the load index correlates much better with the sec
 
 ## t-SNE
 
-Alternative to PCA for dimensionality reduction, to better see clusters in the data...
+Alternative to PCA for dimensionality reduction, to better see clusters in the data... (not needed, and it is very slow!)
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
 library(tsne)
 tSNE.norm <- tsne(loaddata[, c(13,16,19,22)])
 

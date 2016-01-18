@@ -1,5 +1,5 @@
 ---
-title: "Study 1 Alternative Analysis"
+title: "Study 2 Alternative Analysis"
 author: "Luis P."
 date: "January 15, 2016"
 output: html_document
@@ -107,7 +107,7 @@ library(FactoMineR)
 
 #Overall for the four sessions
 res.pca.norm = PCA(datanovice[, c(14,17,20,23)], scale.unit=TRUE, ncp=5, graph=F)
-plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, Normalized data, Expert, dims 1/2")
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, Normalized data, Novice, dims 1/2")
 datanovice$Dim1Norm = res.pca.norm$ind$coord[,1]
 datanovice$Dim2Norm = res.pca.norm$ind$coord[,2]
 ```
@@ -127,6 +127,26 @@ aggregate(datanovice[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(datanovice$Coa
 
 In this case the main PCA dimension and the Load index can be quite different (again, the load index correlates much better with the second PCA dimension)
 
+## t-SNE
+
+Alternative to PCA for dimensionality reduction, to better see clusters in the data...
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
+library(tsne)
+tSNE.norm <- tsne(loaddata[, c(14,17,20,23)])
+
+loaddata$tsne1 <- tSNE.norm[,1]
+loaddata$tsne2 <- tSNE.norm[,2]
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(CoarseLoad)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(Activity)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(Social)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(Focus)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(TeacherLoad)))+geom_point()
+
+#ggplot(loaddata, aes(x=tsne1,y=tsne2, col=Dim1Norm))+geom_point()+ scale_colour_gradient2(low="#22FF00", mid="white", high="#FF0000", midpoint=median(loaddata$Dim1Norm)) + theme(panel.grid=element_blank(), panel.background=element_rect(fill="black"))
+
+
+```
 
 
 # How each signal behaves with respect to the behavioral codes
@@ -654,7 +674,7 @@ t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
 
 With this method, it looks like TeacherLoad is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social and Focus, IS significant between the cases with expert and novice teacher.
 
-### TODO: Try individual metrics too??
+### Try individual metrics too??
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 

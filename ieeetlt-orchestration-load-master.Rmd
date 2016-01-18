@@ -23,16 +23,9 @@ Describe briefly the method...
 ```{r, child="study2alt.Rmd"}
 ```
 
-<!--
-```{r, child="study3.Rmd"}
+```{r, child="study3alt.Rmd"}
 ```
 
-```{r, child="study4.Rmd"}
-```
-
-```{r, child="cross-study.Rmd"}
-```
--->
 
 # Conclusion
 

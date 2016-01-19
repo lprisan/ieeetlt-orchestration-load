@@ -579,14 +579,14 @@ library(dummies)
 
 
 
-lm1 <- lm(FineLoad ~ Activity + Social + Focus + TeacherLoad, data = data)
-summary(lm1)
-anova(lm1)
-
-data2 <- data
-data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
-data2 <- cbind(data2,data.frame(dummy("Social",data2)))
-data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+# lm1 <- lm(FineLoad ~ Activity + Social + Focus + TeacherLoad, data = data)
+# summary(lm1)
+# anova(lm1)
+# 
+# data2 <- data
+# data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+# data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
 
 predmodel <- function(model,data,cols){
     preds <- numeric()
@@ -604,72 +604,72 @@ predmodel <- function(model,data,cols){
     preds
 }
 
-data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
-
-t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-
-
-lm1 <- lm(CoarseLoad ~ Activity + Social + Focus + TeacherLoad, data = data)
-summary(lm1)
-anova(lm1)
-
-data2 <- data
-data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
-data2 <- cbind(data2,data.frame(dummy("Social",data2)))
-data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
-
-data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,33:44)
-
-t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-
-
-# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
-# lm1 <- lm(FineLoad ~ Activity + Social + Focus, data = data)
+# data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
+# 
+# t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+# 
+# 
+# lm1 <- lm(CoarseLoad ~ Activity + Social + Focus + TeacherLoad, data = data)
 # summary(lm1)
 # anova(lm1)
+# 
 # data2 <- data
 # data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
 # data2 <- cbind(data2,data.frame(dummy("Social",data2)))
 # data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
-# data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
+# 
+# data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,33:44)
+# 
 # t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-# ggplot(data2, aes(x=resid))+geom_density()
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
+lm1 <- lm(FineLoad ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
 
 
 
 
 ```
 
-With this method, it looks like TeacherLoad is an important contribution to the model... the t-test shows us that the difference in FineLoad (and even in CoarseLoad) once we remove the influence of Activity, Social and Focus, IS significant for both cases.
+With this method, it looks like TeacherLoad is an important contribution to the model... the t-test shows us that the difference in FineLoad (and even in CoarseLoad) once we remove the influence of Activity, Social and Focus, is NOT significant for both cases.
 
 ### PCA Load Index
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 
-lm1 <- lm(Dim1Norm ~ Activity + Social + Focus + TeacherLoad, data = data)
-summary(lm1)
-anova(lm1)
-
-data2 <- data
-data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
-data2 <- cbind(data2,data.frame(dummy("Social",data2)))
-data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
-
-data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,33:44)
-
-t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-
-# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
-# lm1 <- lm(Dim1Norm ~ Activity + Social + Focus, data = data)
+# lm1 <- lm(Dim1Norm ~ Activity + Social + Focus + TeacherLoad, data = data)
 # summary(lm1)
 # anova(lm1)
+# 
 # data2 <- data
 # data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
 # data2 <- cbind(data2,data.frame(dummy("Social",data2)))
 # data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+# 
 # data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,33:44)
+# 
 # t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-# ggplot(data2, aes(x=resid))+geom_density()
+
+# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
+lm1 <- lm(Dim1Norm ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
 ```
 
 With this method, it looks like TeacherLoad is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social and Focus, IS significant between the cases with expert and novice teacher.
@@ -678,30 +678,30 @@ With this method, it looks like TeacherLoad is an important contribution to the 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 
-lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus + TeacherLoad, data = data)
-summary(lm1)
-anova(lm1)
-
-data2 <- data
-data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
-data2 <- cbind(data2,data.frame(dummy("Social",data2)))
-data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
-
-data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,33:44)
-
-t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-
-# Alternative: building the model without Experimental condition -- in this case the residuals are not significantly different!
-# lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus, data = data)
+# lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus + TeacherLoad, data = data)
 # summary(lm1)
 # anova(lm1)
+# 
 # data2 <- data
 # data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
 # data2 <- cbind(data2,data.frame(dummy("Social",data2)))
 # data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+# 
 # data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,33:44)
+# 
 # t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
-# ggplot(data2, aes(x=resid))+geom_density()
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significantly different!
+lm1 <- lm(value.Mean.norm ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
 ```
 
 For example, for pupil mean, there is no significant difference between the expert and the novice teacher. There is added value in the multi-measure metrics!

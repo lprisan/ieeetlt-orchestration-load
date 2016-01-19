@@ -1,0 +1,745 @@
+---
+title: "Study 4 Alternative Analysis"
+author: "Luis P."
+date: "January 15, 2016"
+output: html_document
+---
+
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+library(ggplot2)
+# We load the useful scripts and packages needed throughout the report
+source("./lib/rollingWindows.R")
+source("./lib/loadIndex.R")
+source("./lib/extremeLoadExtraction.R")
+source("./lib/aggregateEpisodeData.R")
+source("./lib/multiplot.R")
+source("./lib/outliers.R")
+
+rootdir <- getwd()
+setwd(paste(rootdir,"/data/study4",sep=""))
+
+# We do the preprocessing, which will generate a Rda file with the 10s
+# window data, and will return the name of the file
+
+sessions <-  c("JDC2015-Session1","JDC2015-Session2","JDC2015-Session3","JDC2015-Session4")
+
+cleandatafile <- "study4ProcessedData.Rda"
+
+totaldata <- get(load(cleandatafile))
+
+# We crop outliers in the saccade speed. They tend to throw off the HMM and PCA calculations
+#countOutliers(totaldata$value.Sac,coef = 5, method="iqr") # 5xinter-quartile range
+totaldata$value.Sac <- replaceOutliers(totaldata$value.Sac,valueNA = F,coef = 5, method="iqr")
+
+# We remove NAs
+totaldata <- totaldata[complete.cases(totaldata[,c(3:6,14,28)]),]
+
+# We calculate the load according to the different measures: ET only, ET+EEGTheta, ET+EEGTheta+Acc
+loaddataET <- calculateCoarseFineLoadIndex(totaldata,c(3:6),normalize=T) # We ensure that the values are normalized for those of the first window in which little load is assumed (just putting the eyetracker on)
+loaddataETT <- calculateCoarseFineLoadIndex(totaldata,c(3:6),normalize=T,inversecols = 14)
+loaddataETA <- calculateCoarseFineLoadIndex(totaldata,c(3:6,28),normalize=T)
+loaddata <- calculateCoarseFineLoadIndex(totaldata,c(3:6,28),inversecols = 14,normalize=T)
+#str(loaddata)
+
+names(loaddata)
+```
+
+# Exploratory analysis of the physiological signals
+
+... always taking into account the normalized values, not the raw ones!
+
+## Correlations
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(corrplot)
+M <- cor(loaddata[, c(30,33,36,39,42,45)])
+corrplot.mixed(M,main="Correlations, normalized values")
+
+```
+
+We see correlations are far from perfect, which is to be expected, given that different metrics can catch different parts of the multitask activity
+
+Also, we observe that the correlations are quite different from study 1, even if it is the same teacher.
+
+
+## PCA - ET metrics only
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(loaddataET[, c(30,33,36,39)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, ET only, Normalized data, dims 1/2")
+loaddataET$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddataET$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(data, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddataET, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddataET, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(loaddataET[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(loaddataET$CoarseLoad),FUN=mean)
+
+```
+
+It is slightly different, but more or less the Dim1 follows the CoarseLoad.
+
+## PCA - ET metrics + EEG
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(loaddataETT[, c(30,33,36,39,42)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, ET+EEG, Normalized data, dims 1/2")
+loaddataETT$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddataETT$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(data, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddataETT, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddataETT, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(loaddataETT[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(loaddataETT$CoarseLoad),FUN=mean)
+
+```
+
+It is slightly different, but more or less the Dim1 follows the CoarseLoad.
+
+
+## PCA - ET metrics + Acc
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(loaddataETA[, c(30,33,36,39,42)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, ET+Acc, Normalized data, dims 1/2")
+loaddataETA$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddataETA$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(data, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddataETA, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddataETA, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(loaddataETA[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(loaddataETA$CoarseLoad),FUN=mean)
+
+```
+
+It is slightly different, but more or less the Dim1 follows the CoarseLoad.
+
+
+
+## PCA - ET metrics + EEG + Accelerometer (physical load)
+
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+library(FactoMineR)
+
+#Overall for the four sessions
+res.pca.norm = PCA(loaddata[, c(30,33,36,39,42,45)], scale.unit=TRUE, ncp=5, graph=F)
+plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, ET+EEG+Acc, Normalized data, dims 1/2")
+loaddata$Dim1Norm = res.pca.norm$ind$coord[,1]
+loaddata$Dim2Norm = res.pca.norm$ind$coord[,2]
+```
+
+How does this PCA dimension relate to the Load Index?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(ggplot2)
+#ggplot(data, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
+#ggplot(loaddata, aes(x=Dim1Norm, y=FineLoad))+geom_point()+geom_smooth()
+#ggplot(loaddata, aes(x=Dim2Norm, y=FineLoad))+geom_point()+geom_smooth()
+
+aggregate(loaddata[,c("Dim1Norm","Dim2Norm","CoarseLoad")],list(loaddata$CoarseLoad),FUN=mean)
+
+```
+
+It is slightly different, but more or less the Dim1 follows the CoarseLoad.
+
+
+
+
+## t-SNE
+
+Alternative to PCA for dimensionality reduction, to better see clusters in the data...
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
+library(tsne)
+tSNE.norm <- tsne(loaddata[, c(30,33,36,39,42,45)])
+
+loaddata$tsne1 <- tSNE.norm[,1]
+loaddata$tsne2 <- tSNE.norm[,2]
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(CoarseLoad)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(value.Activity)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(value.Social)))+geom_point()
+ggplot(loaddata, aes(x=tsne1,y=tsne2, col=factor(value.Experimental)))+geom_point()
+
+#ggplot(loaddata, aes(x=tsne1,y=tsne2, col=Dim1Norm))+geom_point()+ scale_colour_gradient2(low="#22FF00", mid="white", high="#FF0000", midpoint=median(loaddata$Dim1Norm)) + theme(panel.grid=element_blank(), panel.background=element_rect(fill="black"))
+
+
+```
+
+
+# How each signal behaves with respect to the behavioral codes
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+library(gplots)
+
+# behdata <- dataexpert[!is.na(dataexpert$value.Activity) & !is.na(dataexpert$value.Social),]
+# behdata <- behdata[behdata$value.Social!="GRP",]
+# behdata$value.Social <- factor(behdata$value.Social)
+# behdata <- behdata[behdata$Focus!="BAK",]
+# behdata <- behdata[behdata$Focus!="SCOMP",]
+# behdata <- behdata[behdata$Focus!="TAB",]
+# behdata <- behdata[behdata$Focus!="TEA",]
+# behdata$Focus <- factor(behdata$Focus)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(loaddata, aes(x=value.Mean.norm))+geom_density()
+
+plotmeans(loaddata$value.Mean.norm~loaddata$value.Activity)
+plotmeans(loaddata$value.Mean.norm~loaddata$value.Social)
+
+```
+
+The mean pupil diameter could be affected by the high luminosity of the laptop or the projector? We would need to do whole coding of the Focus too!
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.Mean.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(loaddata, aes(x=value.SD.norm))+geom_density()
+
+plotmeans(loaddata$value.SD.norm~loaddata$value.Activity)
+plotmeans(loaddata$value.SD.norm~loaddata$value.Social)
+
+```
+
+AGain, the SD pupil diameter could be affected by the high luminosity of the laptop/tabletop?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.SD.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(loaddata, aes(x=value.Sac.norm))+geom_density()
+
+plotmeans(loaddata$value.Sac.norm~loaddata$value.Activity)
+plotmeans(loaddata$value.Sac.norm~loaddata$value.Social)
+
+```
+
+The Saccade Speed seems to have a peculiar bimodal distribution (probably due to the sampling done of the session). The saccade speed differences in the social level in this case are not noticeable (no apparent physical effect?). Indeed, the linear model below suggests that in this case saccade speeds are higher in the GRP plane
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- lm(value.Sac.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+ggplot(loaddata, aes(x=value.Fix.norm))+geom_density()
+
+plotmeans(loaddata$value.Fix.norm~loaddata$value.Activity)
+plotmeans(loaddata$value.Fix.norm~loaddata$value.Social)
+
+```
+
+(Here I cannot see any specific trend that can be explained in purely physical terms... because there are no clear trends!)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- glm(value.Fix.norm ~ value.Activity + value.Social, family="poisson", data = loaddata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
+
+
+# Using the "experimental condition" (teacher expertise) to predict the different load indices... is there any difference?
+
+I see two ways of doing it: 1) logistic regression to predict teacher using the load index as parameter (is it significant and positively correlated?);
+2) linear model using the teacher as parameter, substracting the others and doing a t test!
+
+From conversations with Lukasz, it looks like method 2) is more justifiable
+
+
+## Method 2: Linear model
+
+
+### Load Index -- ET only
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+library(dummies)
+
+predmodel <- function(model,data,cols){
+    preds <- numeric()
+    for(row in 1:nrow(data)){
+        sum <- model$coefficients["(Intercept)"]
+        for(i in cols){
+           coef <- model$coefficients[names(data[row,])[i]]
+           if(!is.na(coef)){
+             sum <- sum+(coef*data[row,i])   
+           }
+        }
+        preds[row] <- sum        
+    }
+    
+    preds
+}
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
+lm1 <- lm(FineLoad ~ value.Activity + value.Social, data = loaddataET)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataET
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$FineLoad - predmodel(lm1,data2,46:57)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- lm(CoarseLoad ~ value.Activity + value.Social, data = loaddataET)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataET
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,46:57)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, it looks like value.Experimental is not such a big contribution to the linear model of FineLoad... the t-test shows us that the difference in FineLoad (and even in CoarseLoad) once we remove the influence of Activity, Social, is NOT significant for both cases.
+
+
+### Load Index -- ET+EEG
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
+lm1 <- lm(FineLoad ~ value.Activity + value.Social, data = loaddataETT)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataETT
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$FineLoad - predmodel(lm1,data2,49:60)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- lm(CoarseLoad ~ value.Activity + value.Social, data = loaddataETT)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataETT
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,49:60)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, it looks like value.Experimental is not such a big contribution to the linear model of FineLoad (or coarseload)... indeed, now it works in the wrong direction, although the difference is not significant.
+
+
+### Load Index -- ET+Acc
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
+lm1 <- lm(FineLoad ~ value.Activity + value.Social, data = loaddataETA)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataETA
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$FineLoad - predmodel(lm1,data2,49:60)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- lm(CoarseLoad ~ value.Activity + value.Social, data = loaddataETA)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataETA
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,49:60)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, although there is some difference in the residuals between the two conditions, FineLoad/CoarseLoad difference once we take out the influence of ACtivity and Social is not significant.
+
+
+
+### Load Index -- ET+EEG+Acc
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significant!
+lm1 <- lm(FineLoad ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$FineLoad - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- lm(CoarseLoad ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, although there is some difference in the residuals between the two conditions, FineLoad/CoarseLoad difference once we take out the influence of ACtivity and Social is not significant.
+
+
+**NONE OF THE COARSE/FINE LOAD INDICES ACHIEVES SIGNIFICANT DIFFERENCES!**
+
+
+### PCA Load Index -- ET only
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataET)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataET
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,46:57)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
+
+
+### PCA Load Index -- ET+EEG
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataETT)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataETT
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,49:60)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
+
+
+
+### PCA Load Index -- ET+Acc
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataETA, na.action=na.exclude)
+summary(lm1)
+anova(lm1)
+data2 <- loaddataETA
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,49:60)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
+
+### PCA Load Index -- ET+EEG+Acc
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+# Alternative: building the model without Experimental condition -- in this case the residuals ARE significantly different!
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddata, na.action=na.exclude)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+
+```
+
+With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
+
+
+**ALL OF THE PCA INDICES ACHIEVE SIGNIFICANT DIFFERENCES! ET only and ET+Acc are the most discriminating**
+
+
+
+### Try individual metrics too??
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significantly different!
+lm1 <- lm(value.Mean.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+For example, for pupil mean, there is significant difference... but in the opposite direction as expected!
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+# Alternative: building the model without Experimental condition -- in this case the residuals are not significantly different!
+lm1 <- lm(value.Jerk.Mean.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$value.Jerk.Mean.norm - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+```
+
+The Accelerometer Jerk DOES catch the difference between conditions (which could be argued to be influenced by the physical layout of the teacher only moving in half of the class). It can be nevertheless an interesting dimension to have in the measurements
+
+**ONLY SOME INDIVIDUAL METRICS DISCRIMINATE! (ACCELEROMETER)**
+
+
+
+# Descriptive behavioral patterns: Does Extreme Coding tell the same story as Whole Session Coding?
+
+We coded the parts of the session where we are most confident that load is high (Coarse Load Index=4) or low (Coarse Load Index=4). What are the observed trends in terms of teacher Activity, Social plane?
+
+## From Extreme Coding (only with ET metrics, for now)
+
+### In terms of Load Index
+
+We train a logistic regression model that tries to predict whether a coded episode was of the extreme high or low load kind, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+library(aod)
+library(ggplot2)
+
+behdata <- loaddataET[!is.na(loaddataET$value.Activity) & !is.na(loaddataET$value.Social) & (loaddataET$CoarseLoad==4 | loaddataET$CoarseLoad==0),]
+
+behdata$CoarseType <- ifelse(behdata$CoarseLoad==4,1,0)
+
+table(behdata$CoarseType,behdata$value.Activity)
+table(behdata$CoarseType,behdata$value.Social)
+
+behdata <- behdata[behdata$value.Social!="IND",]
+behdata$value.Social <- factor(behdata$value.Social)
+behdata <- behdata[behdata$value.Activity!="OFF",]
+behdata <- behdata[behdata$value.Activity!="TEC",]
+behdata$value.Activity <- factor(behdata$value.Activity)
+
+logit1 <- glm(CoarseType ~ value.Activity + value.Social, data = behdata, family = "binomial")
+summary(logit1)
+exp(coef(logit1)) # To see odds ratio change for each variable
+anova(logit1, test="Chisq")
+library(pscl)
+pR2(logit1)# pseudo R^2, to see the model fit
+
+
+```
+
+We see that in this case the model is much quite predictive (pseudo Rsquared=0.72 indicating that trends in the data are quite clear). However, the case matrix is too unbalanced to trust the model fully
+
+In this case, both Activity and social are significantly predictive, with TDT, CLS being higher chance of high load, and MON (GRP?) being low load.
+
+
+### In terms of PCA-extracted Index
+
+The distribution of coded values goes continuouosly along the dimension, so we do a linear model in this case, that tries to predict the PCA dimension, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+#ggplot(dataexpert,aes(x=Dim1Norm))+geom_density()
+ggplot(behdata,aes(x=Dim1Norm))+geom_density()
+ggplot(behdata,aes(x=Dim1Norm,col=session))+geom_density()
+# The distribution of coded values goes continuouosly along the dimension, so we do a linear model
+
+
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata)
+summary(lm1)
+anova(lm1)
+
+```
+
+We see that, although the p-value of the model is significantly better than random chance, the Rsqared is very low. This may be due to the fact that sessions are quite different in terms of this PCA dimension. The model only finds Activity significant, with TDT being higher load, and MON being lower load.
+
+We might try to model them separately (with little success, not shown):
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=F}
+
+
+lm2 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session==sessions[2],])
+summary(lm2)
+anova(lm2)
+
+lmrest <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session!=sessions[2],])
+summary(lmrest)
+anova(lmrest)
+
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session==sessions[1],])
+summary(lm1)
+anova(lm1)
+
+lm34 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session==sessions[3] | behdata$session==sessions[4],])
+summary(lm34)
+anova(lm34)
+
+```
+
+
+
+## From whole-session coding (ET metrics only)
+
+
+### In terms of Fine Load Index
+
+
+We train a linear model of FineLoad  
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+lm1 <- lm(FineLoad ~ value.Activity + value.Social, data = loaddataET)
+summary(lm1)
+anova(lm1)
+
+```
+
+We see that in this case the model is reasonably predictive (Rsquared=0.39). It looks like TDT, EXP, QUE, CLS tends to be higher load and MON, GRP (REP) lower load.
+
+We see that in this case the trends are much clearer, given the larger wealth of data.
+
+
+### In terms of PCA-extracted Index
+
+The distribution of coded values goes continuouosly along the dimension, so we do a linear model in this case, that tries to predict the PCA dimension, using Activity, Social plane:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+
+ggplot(loaddataET,aes(x=Dim1Norm))+geom_density()
+ggplot(loaddataET,aes(x=Dim1Norm,col=session))+geom_density()# The distribution of coded values goes continuouosly along the dimension, but it is kind of bimodal, with session 2 being quite different
+
+
+lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataET)
+summary(lm1)
+anova(lm1)
+
+loaddataET2 <- loaddataET[loaddataET$session==sessions[2],]
+loaddataETrest <- loaddataET[loaddataET$session!=sessions[2],]
+lm2 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataET2)
+summary(lm2)
+anova(lm2)
+lmrest <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataETrest)
+summary(lmrest)
+anova(lmrest)
+
+lms <- lm(Dim1Norm ~ value.Activity + value.Social + value.Experimental + factor(session), data = loaddataET)
+summary(lms)
+anova(lms)
+
+
+```
+
+In this case, we have a similar case of the global model not being very predictive (same as in the extreme episode -- **maybe because we are missing the Focus of the gaze?**). Global trends are that Activity and Social is significant predictor, with QUE, GRP being high load (!) and MON being low load. Separating the two sessions:
+
+* For the **Session 2** Only the social level is a significant predictor, with CLS being high load and GRP being low load. The model, however, still does not explain much of the variance in the data (Rsquared=0.05)
+* For the **rest of the sessions**, both social level and activity are significant predictors, with GRP, QUE, MON being high load (!), CLS being low load
+
+Interestingly, a model that introduces the session as an explanatory variable increases the predictive power of the model hugely (Rsquared=0.73). Indeed, we see that removing the effect of session (in which session 2, one without help is greatly higher) makes the effect of the experimental conditions get inverted. Where do these differences come from??
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
+
+# These ones do not look too different
+# ggplot(loaddata,aes(x=value.Mean,col=session))+geom_density()
+# ggplot(loaddata,aes(x=value.SD,col=session))+geom_density()
+# ggplot(loaddata,aes(x=value.Sac,col=session))+geom_density()
+# ggplot(loaddata,aes(x=value.Fix,col=session))+geom_density()
+# ggplot(loaddata,aes(x=value.Jerk.Mean,col=session))+geom_density()
+# ggplot(loaddata,aes(x=value.Theta,col=session))+geom_density()
+
+
+ggplot(loaddata,aes(x=value.Mean.norm,col=session))+geom_density()
+ggplot(loaddata,aes(x=value.SD.norm,col=session))+geom_density()
+ggplot(loaddata,aes(x=value.Sac.norm,col=session))+geom_density()
+ggplot(loaddata,aes(x=value.Fix.norm,col=session))+geom_density()
+ggplot(loaddata,aes(x=value.Jerk.Mean.norm,col=session))+geom_density()
+ggplot(loaddata,aes(x=value.Theta.norm,col=session))+geom_density()
+
+plot(ts(loaddata[loaddata$session==sessions[1],"value.Sac"][1:10]))
+
+```
+
+The pupil SD, but especially **the Saccade Speed, seem to be oddly higher in Session2**!! Something similar happens in session 3 with Theta... is it an effect of the normalization (e.g., an unusually high or low first episode would throw off all PCA measures!)
+
+Alternative: take the average of the first 3 episodes (20s in total) as the value to normalize?

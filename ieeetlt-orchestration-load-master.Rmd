@@ -15,17 +15,25 @@ Orchestration load (the effort a teacher spends in coordinating the multiple act
 
 Describe briefly the method...
 
+# Study 1: Exploring eyetracking metrics
 
 ```{r, child="study1alt.Rmd"}
 ```
 
+# Study 2: Exploring teacher personal differences
 
 ```{r, child="study2alt.Rmd"}
 ```
 
+# Study 3: Exploring teacher usage of different technologies, and subjective measures
+
 ```{r, child="study3alt.Rmd"}
 ```
 
+# Study 4: Exploring in-session load manipulation and extreme load coding vs. full-session coding
+
+```{r, child="study4alt.Rmd"}
+```
 
 # Conclusion
 

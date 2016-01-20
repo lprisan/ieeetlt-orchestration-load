@@ -180,7 +180,7 @@ It is slightly different, but more or less the Dim1 follows the CoarseLoad.
 
 Alternative to PCA for dimensionality reduction, to better see clusters in the data...
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
 library(tsne)
 tSNE.norm <- tsne(loaddata[, c(30,33,36,39,42,45)])
 
@@ -544,9 +544,67 @@ data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,54:65)
 t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
 ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
 
+lm1 <- lm(value.SD.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$value.SD.norm - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- lm(value.Sac.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$value.Sac.norm - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- lm(value.Theta.norm ~ value.Activity + value.Social, data = loaddata)
+summary(lm1)
+anova(lm1)
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+#names(data2)
+data2$resid <- data2$value.Theta.norm - predmodel(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
+
+lm1 <- glm(value.Fix.norm ~ value.Activity + value.Social, data = loaddata, family="poisson")
+summary(lm1)
+anova(lm1, test="Chisq")
+data2 <- loaddata
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+predpois <- function(model,data,cols){
+    preds <- numeric()
+    for(row in 1:nrow(data)){
+        sum <- model$coefficients["(Intercept)"]
+        for(i in cols){
+           coef <- model$coefficients[names(data[row,])[i]]
+           if(!is.na(coef)){
+             sum <- sum+(coef*data[row,i])   
+           }
+        }
+        preds[row] <- sum        
+    }
+    
+    exp(preds)
+}
+data2$resid <- data2$value.Fix.norm - predpois(lm1,data2,54:65)
+t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
+ggplot(data2, aes(x=resid))+geom_density()
+
 ```
 
-For example, for pupil mean, there is significant difference... but in the opposite direction as expected!
+For example, for pupil mean, Theta there is significant difference... but in the opposite direction as expected! pupilSD, Sac, Fix is significant in the right direction, 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 
@@ -566,7 +624,7 @@ ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
 
 The Accelerometer Jerk DOES catch the difference between conditions (which could be argued to be influenced by the physical layout of the teacher only moving in half of the class). It can be nevertheless an interesting dimension to have in the measurements
 
-**ONLY SOME INDIVIDUAL METRICS DISCRIMINATE! (ACCELEROMETER)**
+**ONLY SOME INDIVIDUAL METRICS DISCRIMINATE! (ACCELEROMETER, SD, FIX, SAC)**
 
 
 
@@ -575,7 +633,7 @@ The Accelerometer Jerk DOES catch the difference between conditions (which could
 We coded the parts of the session where we are most confident that load is high (Coarse Load Index=4) or low (Coarse Load Index=4). What are the observed trends in terms of teacher Activity, Social plane?
 
 ## From Extreme Coding (only with ET metrics, for now)
-
+<!--
 ### In terms of Load Index
 
 We train a logistic regression model that tries to predict whether a coded episode was of the extreme high or low load kind, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
@@ -611,7 +669,7 @@ pR2(logit1)# pseudo R^2, to see the model fit
 We see that in this case the model is much quite predictive (pseudo Rsquared=0.72 indicating that trends in the data are quite clear). However, the case matrix is too unbalanced to trust the model fully
 
 In this case, both Activity and social are significantly predictive, with TDT, CLS being higher chance of high load, and MON (GRP?) being low load.
-
+-->
 
 ### In terms of PCA-extracted Index
 
@@ -630,38 +688,24 @@ lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata)
 summary(lm1)
 anova(lm1)
 
-```
 
-We see that, although the p-value of the model is significantly better than random chance, the Rsqared is very low. This may be due to the fact that sessions are quite different in terms of this PCA dimension. The model only finds Activity significant, with TDT being higher load, and MON being lower load.
-
-We might try to model them separately (with little success, not shown):
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=F}
-
-
-lm2 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session==sessions[2],])
-summary(lm2)
-anova(lm2)
-
-lmrest <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session!=sessions[2],])
-summary(lmrest)
-anova(lmrest)
-
-lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session==sessions[1],])
-summary(lm1)
-anova(lm1)
-
-lm34 <- lm(Dim1Norm ~ value.Activity + value.Social, data = behdata[behdata$session==sessions[3] | behdata$session==sessions[4],])
-summary(lm34)
-anova(lm34)
+lms <- lm(Dim1Norm ~ value.Activity + value.Social + session, data = loaddataET)
+summary(lms)
+anova(lms)
 
 ```
+
+We see that, even if both Activity and Social are significant predictors, only the GRP as a low-load factor is significant (maybe affected by the Focus of the gaze, that we have not coded?).
+
+(In an alternative model with session, we see that the session is a very big factor still, but it is not clear whether it is by itself or mediated through the Focus or other unknown factors)
+
+Once we remove all known factors, these session coefficients could be a measure of the load of a session, to compare among sessions...
 
 
 
 ## From whole-session coding (ET metrics only)
 
-
+<!--
 ### In terms of Fine Load Index
 
 
@@ -678,7 +722,7 @@ anova(lm1)
 We see that in this case the model is reasonably predictive (Rsquared=0.39). It looks like TDT, EXP, QUE, CLS tends to be higher load and MON, GRP (REP) lower load.
 
 We see that in this case the trends are much clearer, given the larger wealth of data.
-
+-->
 
 ### In terms of PCA-extracted Index
 
@@ -695,51 +739,24 @@ lm1 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataET)
 summary(lm1)
 anova(lm1)
 
-loaddataET2 <- loaddataET[loaddataET$session==sessions[2],]
-loaddataETrest <- loaddataET[loaddataET$session!=sessions[2],]
-lm2 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataET2)
-summary(lm2)
-anova(lm2)
-lmrest <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataETrest)
-summary(lmrest)
-anova(lmrest)
-
-lms <- lm(Dim1Norm ~ value.Activity + value.Social + value.Experimental + factor(session), data = loaddataET)
+lms <- lm(Dim1Norm ~ value.Activity + value.Social + session, data = loaddataET)
 summary(lms)
 anova(lms)
 
+# loaddataET2 <- loaddataET[loaddataET$session==sessions[2],]
+# loaddataETrest <- loaddataET[loaddataET$session!=sessions[2],]
+# lm2 <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataET2)
+# summary(lm2)
+# anova(lm2)
+# lmrest <- lm(Dim1Norm ~ value.Activity + value.Social, data = loaddataETrest)
+# summary(lmrest)
+# anova(lmrest)
+# 
+# lms <- lm(Dim1Norm ~ value.Activity + value.Social + value.Experimental + factor(session), data = loaddataET)
+# summary(lms)
+# anova(lms)
+
 
 ```
 
-In this case, we have a similar case of the global model not being very predictive (same as in the extreme episode -- **maybe because we are missing the Focus of the gaze?**). Global trends are that Activity and Social is significant predictor, with QUE, GRP being high load (!) and MON being low load. Separating the two sessions:
-
-* For the **Session 2** Only the social level is a significant predictor, with CLS being high load and GRP being low load. The model, however, still does not explain much of the variance in the data (Rsquared=0.05)
-* For the **rest of the sessions**, both social level and activity are significant predictors, with GRP, QUE, MON being high load (!), CLS being low load
-
-Interestingly, a model that introduces the session as an explanatory variable increases the predictive power of the model hugely (Rsquared=0.73). Indeed, we see that removing the effect of session (in which session 2, one without help is greatly higher) makes the effect of the experimental conditions get inverted. Where do these differences come from??
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
-
-# These ones do not look too different
-# ggplot(loaddata,aes(x=value.Mean,col=session))+geom_density()
-# ggplot(loaddata,aes(x=value.SD,col=session))+geom_density()
-# ggplot(loaddata,aes(x=value.Sac,col=session))+geom_density()
-# ggplot(loaddata,aes(x=value.Fix,col=session))+geom_density()
-# ggplot(loaddata,aes(x=value.Jerk.Mean,col=session))+geom_density()
-# ggplot(loaddata,aes(x=value.Theta,col=session))+geom_density()
-
-
-ggplot(loaddata,aes(x=value.Mean.norm,col=session))+geom_density()
-ggplot(loaddata,aes(x=value.SD.norm,col=session))+geom_density()
-ggplot(loaddata,aes(x=value.Sac.norm,col=session))+geom_density()
-ggplot(loaddata,aes(x=value.Fix.norm,col=session))+geom_density()
-ggplot(loaddata,aes(x=value.Jerk.Mean.norm,col=session))+geom_density()
-ggplot(loaddata,aes(x=value.Theta.norm,col=session))+geom_density()
-
-plot(ts(loaddata[loaddata$session==sessions[1],"value.Sac"][1:10]))
-
-```
-
-The pupil SD, but especially **the Saccade Speed, seem to be oddly higher in Session2**!! Something similar happens in session 3 with Theta... is it an effect of the normalization (e.g., an unusually high or low first episode would throw off all PCA measures!)
-
-Alternative: take the average of the first 3 episodes (20s in total) as the value to normalize?
+In this case, we have a similar case of the global model not being very predictive (same as in the extreme episode -- **maybe because we are missing the Focus of the gaze?**). Global trends are that Activity and Social is significant predictor, with TDT, CLS, QUE being high load and GRP being low load

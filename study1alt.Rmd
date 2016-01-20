@@ -5,7 +5,7 @@ date: "January 15, 2016"
 output: html_document
 ---
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE, fig.height=3, fig.width=8}
 library(ggplot2)
 # We load the useful scripts and packages needed throughout the report
 source("./lib/rollingWindows.R")
@@ -42,7 +42,7 @@ names(loaddata)
 
 ## Correlations
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
 library(corrplot)
 M <- cor(loaddata[, c(13,16,19,22)])
 corrplot.mixed(M,main="Correlations, normalized values")
@@ -54,7 +54,7 @@ We see correlations are far from perfect, which is to be expected, given that di
 
 ## PCA
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5}
 library(FactoMineR)
 
 #Overall for the four sessions
@@ -66,7 +66,7 @@ loaddata$Dim2Norm = res.pca.norm$ind$coord[,2]
 
 How does this PCA dimension relate to the Load Index?
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 
 library(ggplot2)
 #ggplot(loaddata, aes(x=Dim1Norm, col=factor(CoarseLoad)))+geom_density()
@@ -83,7 +83,7 @@ It is slightly different, and the load index correlates much better with the sec
 
 Alternative to PCA for dimensionality reduction, to better see clusters in the data... (not needed, and it is very slow!)
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
 library(tsne)
 tSNE.norm <- tsne(loaddata[, c(13,16,19,22)])
 
@@ -101,13 +101,13 @@ ggplot(loaddata, aes(x=tsne1,y=tsne2, col=Dim1Norm))+geom_point()+ scale_colour_
 
 # How each signal behaves with respect to the behavioral codes
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 library(gplots)
 
 behdata <- loaddata[!is.na(loaddata$Activity) & !is.na(loaddata$Social) & !is.na(loaddata$Focus),]
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 ggplot(behdata, aes(x=value.Mean.norm))+geom_density()
 
 plotmeans(behdata$value.Mean.norm~behdata$Activity)
@@ -119,7 +119,7 @@ plotmeans(behdata$value.Mean.norm~behdata$Focus)
 The mean pupil diameter could be affected by the high luminosity of the tabletop, which also gets reflected in the MON, REP and the G codes which happen most often there. How important is this influence? We can do a linear model of the mean-related load to check... and we find out that even taking away the effect of the TAB, the trends of MON, REP and G go in the same direction.
 
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=TRUE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
 behdata <- behdata[behdata$Focus!="TEA",]
 behdata <- behdata[behdata$Focus!="W",]
 behdata <- behdata[behdata$Focus!="M",]
@@ -131,7 +131,7 @@ anova(lm1, test="Chisq")
 ```
 
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 ggplot(behdata, aes(x=value.SD.norm))+geom_density()
 
 plotmeans(behdata$value.SD.norm~behdata$Activity)
@@ -140,15 +140,15 @@ plotmeans(behdata$value.SD.norm~behdata$Focus)
 
 ```
 
-AGain, the SD pupil diameter could be affected by the high luminosity of the tabletop (which may induce a lower contraction/variance of the pupil diameter, if looked at it for a long period of time), which also could explain the low values on MON, REP and the G codes which happen most often there. How important is this influence? We can do a linear model of the mean-related load to check, and we see that the G still has low trends.
+AGain, the SD pupil diameter could be affected by the high luminosity of the tabletop (which may induce a lower contraction/variance of the pupil diameter, if looked at it for a long period of time), which also could explain the low values on MON, REP and the G codes which happen most often there. How important is this influence? We can do a linear model of the mean-related load to check, and we see that without the influence of TAB, G now is higher load (although not significant).
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=TRUE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
 lm1 <- lm(value.SD.norm ~ Activity + Social + Focus, data = behdata)
 summary(lm1)
 anova(lm1, test="Chisq")
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 ggplot(behdata, aes(x=value.Sac.norm))+geom_density()
 
 plotmeans(behdata$value.Sac.norm~behdata$Activity)
@@ -157,16 +157,16 @@ plotmeans(behdata$value.Sac.norm~behdata$Focus)
 
 ```
 
-The Saccade Speed could be physically related to the classroom level, so we also do a model to try to take out its influence with a linear model... we see that, once we get out the influence
+The Saccade Speed could be physically related to the classroom level, so we also do a model to try to take out its influence with a linear model... we see that, once we get out the influence of the other factors, G is now higher in this metric.
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5, eval=TRUE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
 lm1 <- lm(value.Sac.norm ~ Activity + Social + Focus, data = behdata)
 summary(lm1)
 anova(lm1, test="Chisq")
 ```
 
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 ggplot(behdata, aes(x=value.Fix.norm))+geom_density()
 
 plotmeans(behdata$value.Fix.norm~behdata$Activity)
@@ -177,7 +177,11 @@ plotmeans(behdata$value.Fix.norm~behdata$Focus)
 
 (Here I cannot see any specific trend that can be explained in purely physical terms)
 
-
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5, eval=TRUE}
+lm1 <- glm(value.Fix.norm ~ Activity + Social + Focus, family="poisson", data = behdata)
+summary(lm1)
+anova(lm1, test="Chisq")
+```
 
 # Descriptive behavioral patterns
 
@@ -187,7 +191,7 @@ We coded the parts of the session where we are most confident that load is high 
 
 We train a logistic regression model that tries to predict whether a coded episode was of the high or low load kind, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 
 library(aod)
 library(ggplot2)
@@ -228,7 +232,7 @@ Looking at the significance of the coefficients in the model, we see that EXP, C
 
 The distribution of coded values goes continuouosly along the dimension, so we do a linear model in this case, that tries to predict the PCA dimension, using Activity, Social plane and Focus of the gaze as predictor variables, and see which ones are most predictive:
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, fig.height=5, fig.width=5}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE, fig.height=5, fig.width=5}
 
 behdata <- loaddata[!is.na(loaddata$Activity) & !is.na(loaddata$Social) & !is.na(loaddata$Focus),]
 

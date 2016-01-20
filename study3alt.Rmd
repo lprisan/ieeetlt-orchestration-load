@@ -162,7 +162,7 @@ plot.PCA(res.pca.norm, axes=c(1, 2), choix="var", title="PCA, Normalized data, N
 
 Alternative to PCA for dimensionality reduction, to better see clusters in the data...
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
 library(tsne)
 tSNE.norm <- tsne(loaddata[, c(19,22,25,28)])
 
@@ -429,7 +429,7 @@ pR2(logit1)# pseudo R^2, to see the model fit
 
 We see that in this case the model is very predictive (pseudo-Rsquared of 0.75), although there are not enough instances of all cases to trust the model too much.
 
-The three dimensions seem significant to determine the kind of load episode: EXP, QUE, CLS, FAC being higher load, and LAP (MON, PAP and TCOMP) being lower load.
+The three dimensions seem significant to determine the kind of load episode: (EXP, QUE, CLS, FAC being higher load), and LAP (MON, PAP and TCOMP) being lower load.
 
 
 ### In terms of PCA-extracted Index
@@ -452,7 +452,6 @@ anova(lm1)
 
 We see that, in this case, all three of the dimensions are significant at the 0.05 level, and the adjusted Rsquared=0.30. The most noticeable patterns were that EXP, CLS are lower load, while TDT, IND, LAP, PAP were higher load.
 
-(TODO: Check whether the signs are the contrary!)
 
 
 ## Novel technology
@@ -550,7 +549,6 @@ We see that the PCA load index of the two novel technology sessions are much bet
 * In the **first novel** technology session, Activity and Social are significant factors, with CLS, EXP being lower load and MON, QUE, TDT, GRP, IND being higher load.
 * In the **second novel** technology session, Social (and Focus) are significant factors, with CLS, EXP (,TAB) being lower load and GRP, IND being higher load.
 
-Check with TeacherLoad variable: are signs opposite?
 
 # Using the "experimental condition" (teacher expertise with the technology) to predict the different load indices... is there any difference?
 
@@ -601,6 +599,7 @@ data$CoarseType <- ifelse(data$CoarseLoad==2,NA,data$CoarseType)
 I see two ways of doing it: 1) logistic regression to predict teacher using the load index as parameter (is it significant and positively correlated?);
 2) linear model using the teacher as parameter, substracting the others and doing a t test!
 
+<!--
 ## Method 1: Logistic regression (TODO check with Lukasz)
 
 ### Load Index
@@ -663,9 +662,9 @@ pR2(logit1)# pseudo R^2, to see the model fit
 ```
 
 With this method, we see that the pupil mean alone, however, is not a very significant predictor (although it goes in the right direction)
+-->
 
-
-## Method 2: Linear model (Ask Lukasz: should we build the model WITH or WITHOUT the experimental condition? it seems like WITH it, it is too easy!)
+## Method 2: Linear model (build the model WITHOUT the experimental condition)
 
 
 ### Load Index
@@ -733,7 +732,16 @@ data2$resid <- data2$FineLoad - predmodel(lm1,data2,37:54)
 t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
 ggplot(data2, aes(x=resid),col=factor(TeacherLoad))+geom_density()
 
-
+lm1 <- lm(CoarseLoad ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,37:54)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid),col=factor(TeacherLoad))+geom_density()
 
 
 ```
@@ -804,16 +812,66 @@ data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,37:51)
 t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
 ggplot(data2, aes(x=resid,col=factor(TeacherLoad)))+geom_density()
 
+lm1 <- lm(value.SD.norm ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$value.SD.norm - predmodel(lm1,data2,37:51)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
+
+lm1 <- lm(value.Sac.norm ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$value.Sac.norm - predmodel(lm1,data2,37:51)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
+
+# We would need a different predmodel() for poisson models!
+lm1 <- glm(value.Fix.norm ~ Activity + Social + Focus, data = data, family="poisson")
+summary(lm1)
+anova(lm1, test="Chisq")
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+predpois <- function(model,data,cols){
+    preds <- numeric()
+    for(row in 1:nrow(data)){
+        sum <- model$coefficients["(Intercept)"]
+        for(i in cols){
+           coef <- model$coefficients[names(data[row,])[i]]
+           if(!is.na(coef)){
+             sum <- sum+(coef*data[row,i])   
+           }
+        }
+        preds[row] <- sum        
+    }
+    
+    exp(preds)
+}
+data2$resid <- data2$value.Fix.norm - predpois(lm1,data2,37:51)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
+
+
 ```
 
-For example, for pupil mean, there is no significant difference between the usual and novel technology. There is added value in the multi-measure metrics!
+For example, for pupil mean, sd and fixations, there is no significant difference between the usual and novel technology, or there is, but in the wrong direction. Only saccade speed seems significantly different.
 
 # What is the relationship between the eyetracking metrics and the subjective metrics?
 
 
 ## Session-level
 
-```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+```{r, cache=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
 # Compare subjective ratings and comments
 setwd(paste(rootdir,"/data/study3",sep=""))
 
@@ -857,16 +915,16 @@ names(compare)
 qplot(Subjective.Value, FineLoad, data = compare, geom=c("point","smooth"), method="lm", col=factor(TeacherLoad))
 anova(lm(FineLoad~Subjective.Value,data = compare[compare$TeacherLoad==0,]))
 
-cor(compare$Subjective.Value, -compare$Dim1Norm) # Correlation 0.27
-qplot(Subjective.Value, -Dim1Norm, data = compare, geom=c("point","smooth"), method="lm", col=factor(TeacherLoad))
+cor(compare$Subjective.Value, compare$Dim1Norm) # Correlation 0.27
+qplot(Subjective.Value, Dim1Norm, data = compare, geom=c("point","smooth"), method="lm", col=factor(TeacherLoad))
 anova(lm(Dim1Norm~Subjective.Value,data = compare))
 
 
 ```
 
-We find that, although in the usual technology sessions the subjective and eyetracking load ratings correlate significantly, but that trend is inverted in the novel technology ones, hence giving a lack of general correlation between both kinds of scores.
+We find that, although in the usual technology sessions the subjective and coarse/fine eyetracking load ratings correlate significantly, but that trend is inverted in the novel technology ones, hence giving a lack of general correlation between both kinds of scores.
 
-Interestingly, the (negative) first dimension of PCA correlates more consistently with the subjective load ratings for the episodes, in both conditions. But... the correlation is not significant.
+Interestingly, the first dimension of PCA DOES correlates more consistently with the subjective load ratings (corr=0.38) for the episodes, in both conditions. And... the correlation IS significant.
 
 
 ### Qualitative analysis

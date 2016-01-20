@@ -131,7 +131,7 @@ In this case the main PCA dimension and the Load index can be quite different (a
 
 Alternative to PCA for dimensionality reduction, to better see clusters in the data...
 
-```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
+```{r, cache=FALSE, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=5, eval=F}
 library(tsne)
 tSNE.norm <- tsne(loaddata[, c(14,17,20,23)])
 
@@ -508,6 +508,8 @@ data$CoarseType <- ifelse(data$CoarseLoad==2,NA,data$CoarseType)
 I see two ways of doing it: 1) logistic regression to predict teacher using the load index as parameter (is it significant and positively correlated?);
 2) linear model using the teacher as parameter, substracting the others and doing a t test!
 
+
+<!--
 ## Method 1: Logistic regression (check with Lukasz)
 
 ### Load Index
@@ -565,9 +567,9 @@ pR2(logit1)# pseudo R^2, to see the model fit
 ```
 
 With this method, we see that the pupil mean is actually a bad predictor (or a predictor in the opposite direction, not significant!)
+-->
 
-
-## Method 2: Linear model (Ask Lukasz: should we build the model WITH or WITHOUT the experimental condition? it seems like WITH it, it is too easy!)
+## Method 2: Linear model (build the model WITHOUT the experimental condition)
 
 
 
@@ -635,7 +637,16 @@ data2$resid <- data2$FineLoad - predmodel(lm1,data2,33:44)
 t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
 ggplot(data2, aes(x=resid))+geom_density()
 
-
+lm1 <- lm(CoarseLoad ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$CoarseLoad - predmodel(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
 
 
 ```
@@ -702,6 +713,55 @@ data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
 data2$resid <- data2$value.Mean.norm - predmodel(lm1,data2,33:44)
 t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
 ggplot(data2, aes(x=resid))+geom_density()
+
+lm1 <- lm(value.SD.norm ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$value.SD.norm - predmodel(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
+
+lm1 <- lm(value.Sac.norm ~ Activity + Social + Focus, data = data)
+summary(lm1)
+anova(lm1)
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+data2$resid <- data2$value.Sac.norm - predmodel(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
+
+# We would need a different predmodel() for poisson models!
+lm1 <- glm(value.Fix.norm ~ Activity + Social + Focus, data = data, family="poisson")
+summary(lm1)
+anova(lm1, test="Chisq")
+data2 <- data
+data2 <- cbind(data2,data.frame(dummy("Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("Social",data2)))
+data2 <- cbind(data2,data.frame(dummy("Focus",data2)))
+predpois <- function(model,data,cols){
+    preds <- numeric()
+    for(row in 1:nrow(data)){
+        sum <- model$coefficients["(Intercept)"]
+        for(i in cols){
+           coef <- model$coefficients[names(data[row,])[i]]
+           if(!is.na(coef)){
+             sum <- sum+(coef*data[row,i])   
+           }
+        }
+        preds[row] <- sum        
+    }
+    
+    exp(preds)
+}
+data2$resid <- data2$value.Fix.norm - predpois(lm1,data2,33:44)
+t.test(data2[data2$TeacherLoad==0,"resid"],data2[data2$TeacherLoad==1,"resid"])
+ggplot(data2, aes(x=resid))+geom_density()
 ```
 
-For example, for pupil mean, there is no significant difference between the expert and the novice teacher. There is added value in the multi-measure metrics!
+For example, for pupil mean and pupil sd there is significant difference, but not for saccade speed!

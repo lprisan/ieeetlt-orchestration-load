@@ -452,6 +452,32 @@ data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,46:57)
 t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
 ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
 
+# for (i in sessions){
+#   print(i)
+#   print(unique(data2[data2$session==i,"value.Experimental"]))  
+# } 
+
+# What if we compare the sessions themselves, instead of the relevant parts only?
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# Differences ARE significant!
+
+# What if we do the model and compare only the extreme coarse load episodes?
+dataExt <- loaddataET[loaddataET$CoarseLoad==0 | loaddataET$CoarseLoad==4,]
+summary(dataExt)
+lmExt <- lm(Dim1Norm ~ value.Activity + value.Social, data = dataExt)
+summary(lmExt)
+anova(lmExt)
+data2 <- dataExt
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$Dim1Norm - predmodel(lmExt,data2,46:57)
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# It is significant! (but less clearly)
+
 ```
 
 With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
@@ -474,6 +500,26 @@ data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,49:60)
 t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
 ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
 
+# What if we compare the sessions themselves, instead of the relevant parts only?
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# Differences ARE significant!
+
+# What if we do the model and compare only the extreme coarse load episodes?
+dataExt <- loaddataETT[loaddataETT$CoarseLoad==0 | loaddataETT$CoarseLoad==5,]
+summary(dataExt)
+lmExt <- lm(Dim1Norm ~ value.Activity + value.Social, data = dataExt)
+summary(lmExt)
+anova(lmExt)
+data2 <- dataExt
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$Dim1Norm - predmodel(lmExt,data2,46:57)
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# It is significant! (but less clearly)
 ```
 
 With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
@@ -497,6 +543,27 @@ data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,49:60)
 t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
 ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
 
+# What if we compare the sessions themselves, instead of the relevant parts only?
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# Differences ARE significant!
+
+# What if we do the model and compare only the extreme coarse load episodes?
+dataExt <- loaddataETA[loaddataETA$CoarseLoad==0 | loaddataETA$CoarseLoad==5,]
+summary(dataExt)
+lmExt <- lm(Dim1Norm ~ value.Activity + value.Social, data = dataExt)
+summary(lmExt)
+anova(lmExt)
+data2 <- dataExt
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$Dim1Norm - predmodel(lmExt,data2,46:57)
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# It is significant! (but less clearly)
+
 ```
 
 With this method, it looks like the condition is an important contribution to the model... the t-test shows us that the difference in Dim1PCA once we remove the influence of Activity, Social, IS significant between the cases with and without helper!
@@ -518,6 +585,26 @@ data2$resid <- data2$Dim1Norm - predmodel(lm1,data2,54:65)
 t.test(data2[data2$value.Experimental=="C1","resid"],data2[data2$value.Experimental=="C2","resid"])
 ggplot(data2, aes(x=resid, col=value.Experimental))+geom_density()
 
+# What if we compare the sessions themselves, instead of the relevant parts only?
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# Differences ARE significant!
+
+# What if we do the model and compare only the extreme coarse load episodes?
+dataExt <- loaddata[loaddata$CoarseLoad==0 | loaddata$CoarseLoad==6,]
+summary(dataExt)
+lmExt <- lm(Dim1Norm ~ value.Activity + value.Social, data = dataExt)
+summary(lmExt)
+anova(lmExt)
+data2 <- dataExt
+data2 <- cbind(data2,data.frame(dummy("value.Activity",data2)))
+data2 <- cbind(data2,data.frame(dummy("value.Social",data2)))
+data2$resid <- data2$Dim1Norm - predmodel(lmExt,data2,46:57)
+data2$expsession <- ifelse(data2$session==sessions[1] | data2$session==sessions[4],0,1)
+t.test(data2[data2$expsession==1,"resid"],data2[data2$expsession==0,"resid"])
+ggplot(data2, aes(x=resid, col=factor(expsession)))+geom_density()
+# It is significant! (but less clearly)
 
 ```
 
@@ -760,3 +847,12 @@ anova(lms)
 ```
 
 In this case, we have a similar case of the global model not being very predictive (same as in the extreme episode -- **maybe because we are missing the Focus of the gaze?**). Global trends are that Activity and Social is significant predictor, with TDT, CLS, QUE being high load and GRP being low load
+
+
+
+# Appendix: Extreme load moments to code the focus
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE, echo=FALSE}
+outputfile <- paste(rootdir,"/data/study4/TimesToVideoCode.csv",sep="")
+extremedata <- extractExtremeLoadMoments(sessions, loaddataET, outputfile)
+```
